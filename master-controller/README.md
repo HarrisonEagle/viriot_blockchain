@@ -110,10 +110,10 @@ Build the REST server
 npm run build
 ```
 
-Create a `.env` file to configure the server for the test network (make sure TEST_NETWORK_HOME is set to the fully qualified `viriot-network` directory)
+Create a `.env` file to configure the server for the test network (make sure TEST_NETWORK_HOME is set to the fully qualified `test-network` directory)
 
 ```shell
-TEST_NETWORK_HOME=$HOME/fabric-samples/viriot-network npm run generateEnv
+TEST_NETWORK_HOME=$HOME/fabric-samples/test-network npm run generateEnv
 ```
 
 **Note:** see [src/config.ts](src/config.ts) for details of configuring the sample
@@ -137,10 +137,10 @@ It's also possible to use the [published docker image](https://github.com/hyperl
 
 Clone the `fabric-samples` repository and change to the `fabric-samples/asset-transfer-basic/rest-api-typescript` directory before running the following commands
 
-Create a `.env` file to configure the server for the test network (make sure `TEST_NETWORK_HOME` is set to the fully qualified `viriot-network` directory and `AS_LOCAL_HOST` is set to `false` so that the server works inside the Docker Compose network)
+Create a `.env` file to configure the server for the test network (make sure `TEST_NETWORK_HOME` is set to the fully qualified `test-network` directory and `AS_LOCAL_HOST` is set to `false` so that the server works inside the Docker Compose network)
 
 ```shell
-TEST_NETWORK_HOME=$HOME/fabric-samples/viriot-network AS_LOCAL_HOST=false npm run generateEnv
+TEST_NETWORK_HOME=$HOME/fabric-samples/test-network AS_LOCAL_HOST=false npm run generateEnv
 ```
 
 **Note:** see [src/config.ts](src/config.ts) for details of configuring the sample

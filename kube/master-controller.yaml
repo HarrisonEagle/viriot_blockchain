@@ -179,8 +179,8 @@ spec:
     spec:
       containers:
         - name: main
-          image: ghcr.io/hyperledger/fabric-rest-sample
-          imagePullPolicy: IfNotPresent 
+          image: viriot/mastercontroller-on-fabric
+          imagePullPolicy: Never
           env: 
             - name: LOG_LEVEL
               value: debug

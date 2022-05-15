@@ -182,7 +182,7 @@ export const connectionProfileOrg1 = env
   .get('HLF_CONNECTION_PROFILE_ORG1')
   .required()
   .example(
-    '{"name":"viriot-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
+    '{"name":"test-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
   )
   .asJsonObject() as Record<string, unknown>;
 
@@ -211,7 +211,7 @@ export const connectionProfileOrg2 = env
   .get('HLF_CONNECTION_PROFILE_ORG2')
   .required()
   .example(
-    '{"name":"viriot-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
+    '{"name":"test-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
   )
   .asJsonObject() as Record<string, unknown>;
 

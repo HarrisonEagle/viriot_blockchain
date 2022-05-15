@@ -360,15 +360,15 @@ describe('Config values', () => {
       expect(() => {
         require('./config');
       }).toThrow(
-        'env-var: "HLF_CONNECTION_PROFILE_ORG1" is a required variable, but it was not set. An example of a valid value would be: {"name":"viriot-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
+        'env-var: "HLF_CONNECTION_PROFILE_ORG1" is a required variable, but it was not set. An example of a valid value would be: {"name":"test-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
       );
     });
 
     it('can be configured using the "HLF_CONNECTION_PROFILE_ORG1" environment variable', () => {
-      process.env.HLF_CONNECTION_PROFILE_ORG1 = '{"name":"viriot-network-org1"}';
+      process.env.HLF_CONNECTION_PROFILE_ORG1 = '{"name":"test-network-org1"}';
       const config = require('./config');
       expect(config.connectionProfileOrg1).toStrictEqual({
-        name: 'viriot-network-org1',
+        name: 'test-network-org1',
       });
     });
 
@@ -377,7 +377,7 @@ describe('Config values', () => {
       expect(() => {
         require('./config');
       }).toThrow(
-        'env-var: "HLF_CONNECTION_PROFILE_ORG1" should be valid (parseable) JSON. An example of a valid value would be: {"name":"viriot-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
+        'env-var: "HLF_CONNECTION_PROFILE_ORG1" should be valid (parseable) JSON. An example of a valid value would be: {"name":"test-network-org1","version":"1.0.0","client":{"organization":"Org1" ... }'
       );
     });
   });
@@ -422,15 +422,15 @@ describe('Config values', () => {
       expect(() => {
         require('./config');
       }).toThrow(
-        'env-var: "HLF_CONNECTION_PROFILE_ORG2" is a required variable, but it was not set. An example of a valid value would be: {"name":"viriot-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
+        'env-var: "HLF_CONNECTION_PROFILE_ORG2" is a required variable, but it was not set. An example of a valid value would be: {"name":"test-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
       );
     });
 
     it('can be configured using the "HLF_CONNECTION_PROFILE_ORG2" environment variable', () => {
-      process.env.HLF_CONNECTION_PROFILE_ORG2 = '{"name":"viriot-network-org2"}';
+      process.env.HLF_CONNECTION_PROFILE_ORG2 = '{"name":"test-network-org2"}';
       const config = require('./config');
       expect(config.connectionProfileOrg2).toStrictEqual({
-        name: 'viriot-network-org2',
+        name: 'test-network-org2',
       });
     });
 
@@ -439,7 +439,7 @@ describe('Config values', () => {
       expect(() => {
         require('./config');
       }).toThrow(
-        'env-var: "HLF_CONNECTION_PROFILE_ORG2" should be valid (parseable) JSON. An example of a valid value would be: {"name":"viriot-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
+        'env-var: "HLF_CONNECTION_PROFILE_ORG2" should be valid (parseable) JSON. An example of a valid value would be: {"name":"test-network-org2","version":"1.0.0","client":{"organization":"Org2" ... }'
       );
     });
   });

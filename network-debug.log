@@ -1,6 +1,6 @@
 Error from server (NotFound): configmaps "viriot-master-controller-config" not found
 configmap/viriot-master-controller-config created
-Applying template kube/fabric-rest-sample.yaml:
+Applying template kube/master-controller.yaml:
 #
 # Copyright IBM Corp. All Rights Reserved.
 #
@@ -182,8 +182,8 @@ spec:
     spec:
       containers:
         - name: main
-          image: ghcr.io/hyperledger/fabric-rest-sample
-          imagePullPolicy: IfNotPresent 
+          image: viriot/mastercontroller-on-fabric
+          imagePullPolicy: Never
           env: 
             - name: LOG_LEVEL
               value: debug
@@ -263,8 +263,8 @@ spec:
             pathType: ImplementationSpecific
 
 configmap/viriot-master-controller-config-example created
-deployment.apps/viriot-master-controller unchanged
-service/viriot-master-controller unchanged
-ingress.networking.k8s.io/viriot-master-controller unchanged
+deployment.apps/viriot-master-controller created
+service/viriot-master-controller created
+ingress.networking.k8s.io/viriot-master-controller created
 Waiting for deployment "viriot-master-controller" rollout to finish: 0 of 1 updated replicas are available...
 deployment "viriot-master-controller" successfully rolled out

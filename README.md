@@ -1,4 +1,4 @@
-# Kubernetes Test Network 
+# VirIoT MasterControoler Network on Hyperldger Fabric
 
 This project re-establishes the Hyperledger [viriot-network](../viriot-network) as a _cloud native_ application.
 
@@ -45,13 +45,13 @@ Launch the network, create a channel, and deploy the [basic-asset-transfer](../a
 
 ./network channel create
 
-./network chaincode deploy asset-transfer-basic basic_1.0 $PWD/../asset-transfer-basic/chaincode-java
+./network chaincode deploy viriot-chaincode basic_1.0 chaincode
 ```
 
 Invoke and query chaincode:
 ```shell
-./network chaincode invoke asset-transfer-basic '{"Args":["InitLedger"]}'
-./network chaincode query  asset-transfer-basic '{"Args":["ReadAsset","asset1"]}'
+./network chaincode invoke viriot-chaincode '{"Args":["InitLedger"]}'
+./network chaincode query  viriot-chaincode '{"Args":["ReadAsset","asset1"]}'
 ```
 
 Access the blockchain with a [REST API](https://github.com/hyperledger/fabric-samples/tree/main/asset-transfer-basic/rest-api-typescript): 

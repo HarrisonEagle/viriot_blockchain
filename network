@@ -136,14 +136,9 @@ elif [[ "${MODE}" == "chaincode" || "${MODE}" == "cc" ]]; then
 elif [ "${MODE}" == "anchor" ]; then
   update_anchor_peers $@
 
-elif [ "${MODE}" == "rest-easy" ]; then
-  log "Launching fabric-rest-sample application:"
-  launch_rest_sample
-  log "🏁 - Fabric REST sample is ready."
-
 elif [ "${MODE}" == "master-controller" ]; then
   log "Launching VirIoT MasterController application:"
-  launch_rest_sample
+  launch_master_controller
   log "🏁 - VirIoT MasterController is ready."
 
 elif [ "${MODE}" == "application" ]; then

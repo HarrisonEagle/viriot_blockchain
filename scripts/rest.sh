@@ -21,7 +21,7 @@ function json_ccp {
       scripts/ccp-template.json
 }
 
-function construct_rest_sample_configmap() {
+function construct_master_controller_configmap() {
   push_fn "Constructing viriot-master-controller connection profiles"
 
   ENROLLMENT_DIR=${TEMP_DIR}/enrollments
@@ -50,20 +50,20 @@ function construct_rest_sample_configmap() {
   pop_fn
 }
 
-function rollout_rest_sample() {
-  push_fn "Starting fabric-rest-sample"
+function rollout_master_controller() {
+  push_fn "Starting VirIoT Master Controller"
 
-  kubectl -n $NS apply -f kube/fabric-rest-sample.yaml
+  kubectl -n $NS apply -f kube/master-controller.yaml
   kubectl -n $NS rollout status deploy/viriot-master-controller
 
   pop_fn
 }
 
-function launch_rest_sample() {
+function launch_master_controller() {
 
-  construct_rest_sample_configmap
+  construct_master_controller_configmap
 
-  apply_template kube/fabric-rest-sample.yaml
+  apply_template kube/master-controller.yaml
 
   kubectl -n $NS rollout status deploy/viriot-master-controller
 

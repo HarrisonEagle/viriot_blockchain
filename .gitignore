@@ -24,4 +24,4 @@ package-lock.json
 *msp*
 /network/organizations/ordererOrganizations/*
 /network/organizations/peerOrganizations/*
-
+*.log
