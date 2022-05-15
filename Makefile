@@ -1,5 +1,7 @@
 up:
 	./network up
+init:
+	./network up
 	./network channel create
 	./network chaincode deploy viriot-chaincode basic_1.0 chaincode
 down:
