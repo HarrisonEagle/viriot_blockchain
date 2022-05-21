@@ -1,4 +1,4 @@
-module github.com/hyperledger/fabric-samples/asset-transfer-basic/chaincode-external
+module viriot-blockchain/chaincode
 
 go 1.14
 

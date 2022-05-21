@@ -11,11 +11,29 @@
             }
         }
     },
+    "channels": {
+        "mychannel": {
+          "orderers": [
+            "org0-orderer${ORG}"
+          ],
+          "peers": {
+            "org${ORG}-peers": {
+              "endorsingPeer": true,
+              "chaincodeQuery": true,
+              "ledgerQuery": true,
+              "eventSource": true
+            }
+          }
+        }
+    },
     "organizations": {
         "Org${ORG}": {
             "mspid": "Org${ORG}MSP",
             "peers": [
                 "org${ORG}-peers"
+            ],
+            "orderers": [
+                "org0-orderer${ORG}"
             ],
             "certificateAuthorities": [
                 "org${ORG}-ca"
@@ -32,6 +50,18 @@
                 "ssl-target-name-override": "org${ORG}-peer-gateway-svc",
                 "hostnameOverride": "org${ORG}-peer-gateway-svc"
             }
+        }
+    },
+    "orderers": {
+        "org0-orderer${ORG}": {
+          "url": "grpcs://org0-orderer${ORG}:6050",
+          "grpcOptions": {
+            "ssl-target-name-override": "org0-orderer${ORG}",
+            "hostnameOverride": "org0-orderer${ORG}"
+          },
+          "tlsCACerts": {
+            "pem": "${ORDERPEM}"
+          }
         }
     },
     "certificateAuthorities": {
