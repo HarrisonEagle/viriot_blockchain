@@ -7,10 +7,8 @@ import (
 
 func CreateWallet(config *Config) *gateway.Wallet {
 	wallet := gateway.NewInMemoryWallet()
-	org1Identity := gateway.NewX509Identity(config.MspIdOrg1, config.CertificateOrg1, config.PrivateKeyOrg1)
-	wallet.Put(config.MspIdOrg1, org1Identity)
-	org2Identity := gateway.NewX509Identity(config.MspIdOrg2, config.CertificateOrg2, config.PrivateKeyOrg2)
-	wallet.Put(config.MspIdOrg2, org2Identity)
+	orgIdentity := gateway.NewX509Identity(config.MspIdOrg, config.CertificateOrg, config.PrivateKeyOrg)
+	wallet.Put(config.MspIdOrg, orgIdentity)
 	return wallet
 }
 

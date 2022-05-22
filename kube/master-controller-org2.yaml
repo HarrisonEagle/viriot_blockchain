@@ -1,0 +1,99 @@
+#
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viriot-master-controller-org2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: viriot-master-controller-org2
+  template:
+    metadata:
+      labels:
+        app: viriot-master-controller-org2
+    spec:
+      containers:
+        - name: main
+          image: viriot/mastercontroller-on-fabric
+          imagePullPolicy: Never
+          env: 
+            - name: LOG_LEVEL
+              value: debug
+            - name: HFC_LOGGING
+              value: '{ "debug": "console" }'
+            - name: PORT
+              value: "3000"
+            - name: RETRY_DELAY
+              value: "3000"
+            - name: MAX_RETRY_COUNT
+              value: "5"
+            - name: HLF_COMMIT_TIMEOUT
+              value: "3000"
+            - name: HLF_ENDORSE_TIMEOUT
+              value: "30"
+            - name: REDIS_HOST
+              value: "localhost"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ORG_APIKEY
+              value: "BC42E734-062D-4AEE-A591-5973CB763430"
+            - name: AS_LOCAL_HOST
+              value: "false"
+            - name: HLF_CHAINCODE_NAME
+              value: "viriot-chaincode"
+#            - name: REDIS_USERNAME
+#              value: redisuser
+#            - name: REDIS_PASSWORD
+#              value: redispasword
+
+          envFrom:
+            - configMapRef:
+                name: viriot-master-controller-config-org2
+          ports:
+            - containerPort: 3000
+        - name: redis
+          image: redis:6.2.5
+          ports:
+            - containerPort: 6379
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: viriot-master-controller-org2
+spec:
+  ports:
+    - name: http
+      port: 3000
+      protocol: TCP
+  selector:
+    app: viriot-master-controller-org2
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: 60s
+  labels:
+    app: viriot-master-controller-org2
+  name: viriot-master-controller-org2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: viriot-master-controller-org2.${DOMAIN}
+      http:
+        paths:
+          - backend:
+              service:
+                name: viriot-master-controller-org2
+                port:
+                  name: http
+            path: /
+            pathType: ImplementationSpecific
+

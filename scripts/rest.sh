@@ -24,32 +24,7 @@ function json_ccp {
 }
 
 function construct_master_controller_configmap() {
-  push_fn "Constructing viriot-master-controller connection profiles"
-
-  ENROLLMENT_DIR=${TEMP_DIR}/enrollments
-  CHANNEL_MSP_DIR=${TEMP_DIR}/channel-msp
-  CONFIG_DIR=${TEMP_DIR}/viriot-master-controller-config 
-
-  mkdir -p $CONFIG_DIR
-
-  local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
-  local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
-  local orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
-  echo "$(json_ccp 1 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config/HLF_CONNECTION_PROFILE_ORG1
-
-  peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
-  ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/cacerts/ca-signcert.pem
-  orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer2/tls/signcerts/tls-cert.pem
-  echo "$(json_ccp 2 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config/HLF_CONNECTION_PROFILE_ORG2
-
-  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG1
-  cp $ENROLLMENT_DIR/org2/users/org2admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG2
-
-  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG1
-  cp $ENROLLMENT_DIR/org2/users/org2admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG2
-
-  kubectl -n $NS delete configmap viriot-master-controller-config || true
-  kubectl -n $NS create configmap viriot-master-controller-config --from-file=$CONFIG_DIR
+  
 
   pop_fn
 }
@@ -65,11 +40,49 @@ function rollout_master_controller() {
 
 function launch_master_controller() {
 
-  construct_master_controller_configmap
+  push_fn "Constructing viriot-master-controller-org1 connection profiles"
 
-  apply_template kube/master-controller.yaml
+  ENROLLMENT_DIR=${TEMP_DIR}/enrollments
+  CHANNEL_MSP_DIR=${TEMP_DIR}/channel-msp
+  CONFIG_DIR=${TEMP_DIR}/viriot-master-controller-config-org1 
 
-  kubectl -n $NS rollout status deploy/viriot-master-controller
+  mkdir -p $CONFIG_DIR
+
+  local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
+  local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
+  local orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
+  echo "$(json_ccp 1 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org1/HLF_CONNECTION_PROFILE_ORG
+
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
+
+  kubectl -n $NS delete configmap viriot-master-controller-config-org1 || true
+  kubectl -n $NS create configmap viriot-master-controller-config-org1 --from-file=$CONFIG_DIR
+
+  push_fn "Constructing viriot-master-controller-org2 connection profiles"
+
+  ENROLLMENT_DIR=${TEMP_DIR}/enrollments
+  CHANNEL_MSP_DIR=${TEMP_DIR}/channel-msp
+  CONFIG_DIR=${TEMP_DIR}/viriot-master-controller-config-org2
+
+  mkdir -p $CONFIG_DIR
+
+  peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
+  ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/cacerts/ca-signcert.pem
+  orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
+  echo "$(json_ccp 2 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org2/HLF_CONNECTION_PROFILE_ORG
+
+  cp $ENROLLMENT_DIR/org2/users/org2admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
+  cp $ENROLLMENT_DIR/org2/users/org2admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
+
+  kubectl -n $NS delete configmap viriot-master-controller-config-org2 || true
+  kubectl -n $NS create configmap viriot-master-controller-config-org2 --from-file=$CONFIG_DIR
+
+  apply_template kube/master-controller-org1.yaml
+  kubectl -n $NS rollout status deploy/viriot-master-controller-org1
+
+  apply_template kube/master-controller-org2.yaml
+  kubectl -n $NS rollout status deploy/viriot-master-controller-org2
 
   log ""
   log "The viriot-master-controller has started."
@@ -77,6 +90,9 @@ function launch_master_controller() {
   log "To access the endpoint:"
   log ""
   log "export SAMPLE_APIKEY=97834158-3224-4CE7-95F9-A148C886653E"
-  log 'curl -s --header "X-Api-Key: ${SAMPLE_APIKEY}" viriot-master-controller.'${DOMAIN}'/api/assets'
+  log 'curl -s --header "X-Api-Key: ${SAMPLE_APIKEY}" viriot-master-controller-org1.'${DOMAIN}'/api/assets'
+  log ""
+  log "export SAMPLE_APIKEY=BC42E734-062D-4AEE-A591-5973CB763430"
+  log 'curl -s --header "X-Api-Key: ${SAMPLE_APIKEY}" viriot-master-controller-org2.'${DOMAIN}'/api/assets'
   log ""
 }

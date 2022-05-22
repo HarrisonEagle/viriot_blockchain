@@ -156,6 +156,9 @@ function invoke_chaincode() {
   shift
 
   export_peer_context org1 peer1
+  export_peer_context org1 peer2
+  export_peer_context org2 peer1
+  export_peer_context org2 peer2
 
   peer chaincode invoke \
     -n              $cc_name \
@@ -197,7 +200,7 @@ function package_chaincode() {
   local cc_folder=$(dirname $cc_archive)
   local archive_name=$(basename $cc_archive)
 
-  push_fn "Packaging chaincode ${cc_label}"
+  push_fn "Packaging chaincode ${cc_label} CCLabel:${cc_label} CCArchive:${cc_archive}"
 
   mkdir -p ${cc_folder}
 
@@ -258,8 +261,10 @@ function launch_chaincode() {
   local cc_id=$2
   local cc_image="chaincode"
 
-  launch_chaincode_service ${org} peer1 ${cc_name} ${cc_id} ${cc_image}
-  launch_chaincode_service ${org} peer2 ${cc_name} ${cc_id} ${cc_image}
+  launch_chaincode_service org1 peer1 ${cc_name} ${cc_id} ${cc_image}
+  launch_chaincode_service org1 peer2 ${cc_name} ${cc_id} ${cc_image}
+  launch_chaincode_service org2 peer1 ${cc_name} ${cc_id} ${cc_image}
+  launch_chaincode_service org2 peer2 ${cc_name} ${cc_id} ${cc_image}
 }
 
 function install_chaincode_for() {
@@ -280,8 +285,10 @@ function install_chaincode() {
   local org=org1
   local cc_package=$1
 
-  install_chaincode_for ${org} peer1 ${cc_package}
-  install_chaincode_for ${org} peer2 ${cc_package}
+  install_chaincode_for org1 peer1 ${cc_package}
+  install_chaincode_for org1 peer2 ${cc_package}
+  install_chaincode_for org2 peer1 ${cc_package}
+  install_chaincode_for org2 peer2 ${cc_package}
 }
 
 # approve the chaincode package for an org and assign a name
@@ -292,7 +299,10 @@ function approve_chaincode() {
   local cc_id=$2
   push_fn "Approving chaincode ${cc_name} with ID ${cc_id}"
 
-  export_peer_context $org $peer
+  export_peer_context org1 peer1
+  export_peer_context org1 peer2
+  export_peer_context org2 peer1
+  export_peer_context org2 peer2
 
   peer lifecycle \
     chaincode approveformyorg \
@@ -315,7 +325,10 @@ function commit_chaincode() {
   local cc_name=$1
   push_fn "Committing chaincode ${cc_name}"
 
-  export_peer_context $org $peer
+  export_peer_context org1 peer1
+  export_peer_context org1 peer2
+  export_peer_context org2 peer1
+  export_peer_context org2 peer2
 
   peer lifecycle \
     chaincode commit \

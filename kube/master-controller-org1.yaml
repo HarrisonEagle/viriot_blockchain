@@ -6,16 +6,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: viriot-master-controller
+  name: viriot-master-controller-org1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: viriot-master-controller
+      app: viriot-master-controller-org1
   template:
     metadata:
       labels:
-        app: viriot-master-controller
+        app: viriot-master-controller-org1
     spec:
       containers:
         - name: main
@@ -40,10 +40,8 @@ spec:
               value: "localhost"
             - name: REDIS_PORT
               value: "6379"
-            - name: ORG1_APIKEY
+            - name: ORG_APIKEY
               value: "97834158-3224-4CE7-95F9-A148C886653E"
-            - name: ORG2_APIKEY
-              value: "BC42E734-062D-4AEE-A591-5973CB763430"
             - name: AS_LOCAL_HOST
               value: "false"
             - name: HLF_CHAINCODE_NAME
@@ -55,7 +53,7 @@ spec:
 
           envFrom:
             - configMapRef:
-                name: viriot-master-controller-config
+                name: viriot-master-controller-config-org1
           ports:
             - containerPort: 3000
         - name: redis
@@ -67,14 +65,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: viriot-master-controller
+  name: viriot-master-controller-org1
 spec:
   ports:
     - name: http
       port: 3000
       protocol: TCP
   selector:
-    app: viriot-master-controller
+    app: viriot-master-controller-org1
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -83,17 +81,17 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: 60s
   labels:
-    app: viriot-master-controller
-  name: viriot-master-controller
+    app: viriot-master-controller-org1
+  name: viriot-master-controller-org1
 spec:
   ingressClassName: nginx
   rules:
-    - host: viriot-master-controller.${DOMAIN}
+    - host: viriot-master-controller-org1.${DOMAIN}
       http:
         paths:
           - backend:
               service:
-                name: viriot-master-controller
+                name: viriot-master-controller-org1
                 port:
                   name: http
             path: /

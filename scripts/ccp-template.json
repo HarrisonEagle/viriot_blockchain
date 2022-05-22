@@ -14,7 +14,7 @@
     "channels": {
         "mychannel": {
           "orderers": [
-            "org0-orderer${ORG}"
+            "org0-orderer1"
           ],
           "peers": {
             "org${ORG}-peers": {
@@ -33,7 +33,7 @@
                 "org${ORG}-peers"
             ],
             "orderers": [
-                "org0-orderer${ORG}"
+                "org0-orderer1"
             ],
             "certificateAuthorities": [
                 "org${ORG}-ca"
@@ -53,11 +53,11 @@
         }
     },
     "orderers": {
-        "org0-orderer${ORG}": {
-          "url": "grpcs://org0-orderer${ORG}:6050",
+        "org0-orderer1": {
+          "url": "grpcs://org0-orderer1:6050",
           "grpcOptions": {
-            "ssl-target-name-override": "org0-orderer${ORG}",
-            "hostnameOverride": "org0-orderer${ORG}"
+            "ssl-target-name-override": "org0-orderer1",
+            "hostnameOverride": "org0-orderer1"
           },
           "tlsCACerts": {
             "pem": "${ORDERPEM}"
