@@ -15,13 +15,12 @@ function json_ccp {
   local ORG=$1
   local PP=$(one_line_pem $2)
   local CP=$(one_line_pem $3)
-  local OP=$(one_line_pem $4)
   sed -e "s/\${ORG}/$ORG/" \
       -e "s#\${PEERPEM}#$PP#" \
       -e "s#\${CAPEM}#$CP#" \
-      -e "s#\${ORDERPEM}#$OP#" \
       scripts/ccp-template.json
 }
+
 
 function construct_master_controller_configmap() {
   
@@ -50,7 +49,6 @@ function launch_master_controller() {
 
   local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
   local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
-  local orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
   echo "$(json_ccp 1 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org1/HLF_CONNECTION_PROFILE_ORG
 
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
@@ -69,7 +67,6 @@ function launch_master_controller() {
 
   peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
   ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/cacerts/ca-signcert.pem
-  orderer_pem=$CHANNEL_MSP_DIR/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
   echo "$(json_ccp 2 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org2/HLF_CONNECTION_PROFILE_ORG
 
   cp $ENROLLMENT_DIR/org2/users/org2admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG

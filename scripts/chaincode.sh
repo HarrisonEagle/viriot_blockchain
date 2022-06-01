@@ -112,10 +112,12 @@ function activate_chaincode() {
   local cc_name=$1
   local cc_package=$2
 
-  set_chaincode_id    ${cc_package}
-
-  install_chaincode   ${cc_package}
-  approve_chaincode   ${cc_name} ${CHAINCODE_ID}
+  install_chaincode_for org1 peer1 ${cc_package} Org1MSP
+  install_chaincode_for org1 peer2 ${cc_package} Org1MSP
+  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org1 peer1 Org1MSP
+  install_chaincode_for org2 peer1 ${cc_package} Org2MSP
+  install_chaincode_for org2 peer2 ${cc_package} Org2MSP
+  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org2 peer1 Org2MSP
   commit_chaincode    ${cc_name}
 }
 
@@ -155,10 +157,7 @@ function invoke_chaincode() {
   local cc_name=$1
   shift
 
-  export_peer_context org1 peer1
-  export_peer_context org1 peer2
-  export_peer_context org2 peer1
-  export_peer_context org2 peer2
+  export_peer_context org1 peer1 
 
   peer chaincode invoke \
     -n              $cc_name \
@@ -271,11 +270,12 @@ function install_chaincode_for() {
   local org=$1
   local peer=$2
   local cc_package=$3
+  local orgname=$4
   push_fn "Installing chaincode for org ${org} peer ${peer}"
-
-  export_peer_context $org $peer
+  export_peer_context $org $peer $orgname
 
   peer lifecycle chaincode install $cc_package
+  peer lifecycle chaincode queryinstalled
 
   pop_fn
 }
@@ -285,27 +285,24 @@ function install_chaincode() {
   local org=org1
   local cc_package=$1
 
-  install_chaincode_for org1 peer1 ${cc_package}
-  install_chaincode_for org1 peer2 ${cc_package}
-  install_chaincode_for org2 peer1 ${cc_package}
-  install_chaincode_for org2 peer2 ${cc_package}
+  install_chaincode_for org1 peer1 ${cc_package} Org1MSP
+  install_chaincode_for org1 peer2 ${cc_package} Org1MSP
+  install_chaincode_for org2 peer1 ${cc_package} Org2MSP
+  install_chaincode_for org2 peer2 ${cc_package} Org2MSP
 }
 
 # approve the chaincode package for an org and assign a name
 function approve_chaincode() {
-  local org=org1
-  local peer=peer1
+  local org=$3
+  local peer=$4
   local cc_name=$1
   local cc_id=$2
+  local orgname=$5
   push_fn "Approving chaincode ${cc_name} with ID ${cc_id}"
 
-  export_peer_context org1 peer1
-  export_peer_context org1 peer2
-  export_peer_context org2 peer1
-  export_peer_context org2 peer2
+  export_peer_context $org $peer $orgname
 
-  peer lifecycle \
-    chaincode approveformyorg \
+  peer lifecycle chaincode approveformyorg \
     --channelID     ${CHANNEL_NAME} \
     --name          ${cc_name} \
     --version       1 \
@@ -320,15 +317,8 @@ function approve_chaincode() {
 
 # commit the named chaincode for an org
 function commit_chaincode() {
-  local org=org1
-  local peer=peer1
   local cc_name=$1
   push_fn "Committing chaincode ${cc_name}"
-
-  export_peer_context org1 peer1
-  export_peer_context org1 peer2
-  export_peer_context org2 peer1
-  export_peer_context org2 peer2
 
   peer lifecycle \
     chaincode commit \
@@ -338,7 +328,9 @@ function commit_chaincode() {
     --sequence      1 \
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
-    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
+    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \
+    --peerAddresses org1-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem \
+    --peerAddresses org2-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
 
   pop_fn
 }
@@ -351,4 +343,3 @@ function set_chaincode_id() {
 
   CHAINCODE_ID=${cc_label}:${cc_sha256}
 }
-
