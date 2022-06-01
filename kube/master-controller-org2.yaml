@@ -48,6 +48,16 @@ spec:
               value: "viriot-chaincode"
             - name: HLF_MSP_ID_ORG
               value: "Org2MSP"
+            - name: HLF_ORG_ID
+              value: "Org2"
+            - name: HLF_ORG_CA
+              value: "org2-ca"
+            - name: HLF_ORG_ADMIN
+              value: "org2admin"
+            - name: HLF_ORG_ADMINPW
+              value: "org2adminpw"
+            - name: HLF_CA_DEPARTMENT
+              value: "org2.department1"
 #            - name: REDIS_USERNAME
 #              value: redisuser
 #            - name: REDIS_PASSWORD

@@ -49,8 +49,9 @@ function launch_master_controller() {
 
   local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
   local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
-  echo "$(json_ccp 1 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org1/HLF_CONNECTION_PROFILE_ORG
+  echo "$(json_ccp 1 $peer_pem $ca_pem)" > build/viriot-master-controller-config-org1/HLF_CONNECTION_PROFILE_ORG
 
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/cacerts/org1-ca-vcap-me-443.pem $CONFIG_DIR/HLF_ADMIN_PUBLIC_KEY
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
 
@@ -67,8 +68,9 @@ function launch_master_controller() {
 
   peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
   ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org2/msp/cacerts/ca-signcert.pem
-  echo "$(json_ccp 2 $peer_pem $ca_pem $orderer_pem)" > build/viriot-master-controller-config-org2/HLF_CONNECTION_PROFILE_ORG
+  echo "$(json_ccp 2 $peer_pem $ca_pem)" > build/viriot-master-controller-config-org2/HLF_CONNECTION_PROFILE_ORG
 
+  cp $ENROLLMENT_DIR/org2/users/org2admin/msp/cacerts/org2-ca-vcap-me-443.pem $CONFIG_DIR/HLF_ADMIN_PUBLIC_KEY
   cp $ENROLLMENT_DIR/org2/users/org2admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
   cp $ENROLLMENT_DIR/org2/users/org2admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
 

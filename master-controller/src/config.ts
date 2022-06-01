@@ -21,7 +21,11 @@ export const ORG = env
   .example(`Org1`)
   .asString();
 
-export const JOB_QUEUE_NAME = 'submit';
+export const CA = env
+  .get('HLF_ORG_CA')
+  .default(`org1-ca`)
+  .example(`org1-ca`)
+  .asString();
 
 /**
  * Log level for the REST server
@@ -238,3 +242,22 @@ export const orgApiKey = env
   .required()
   .example('123')
   .asString();
+
+export const orgAdminUser = env
+  .get('HLF_ORG_ADMIN')
+  .default(`org1admin`)
+  .example(`org1admin`)
+  .asString();
+
+export const orgAdminPW = env
+  .get('HLF_ORG_ADMINPW')
+  .default(`org1adminpw`)
+  .example(`org1adminpw`)
+  .asString();
+
+export const orgCADepartment = env
+  .get('HLF_CA_DEPARTMENT')
+  .default(`org1.department1`)
+  .example(`org1.department1`)
+  .asString();
+

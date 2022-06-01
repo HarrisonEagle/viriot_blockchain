@@ -40,7 +40,6 @@ export const createWallet = async (): Promise<Wallet> => {
   };
 
   await wallet.put(config.mspIdOrg, orgIdentity);
-
   return wallet;
 };
 

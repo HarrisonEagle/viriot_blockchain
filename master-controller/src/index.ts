@@ -19,6 +19,7 @@ async function main() {
 
   logger.info('Connecting to Fabric network with org1 mspid');
   const wallet = await createWallet();
+  app.locals["wallet"] = wallet;
 
   const gatewayOrg = await createGateway(
     config.connectionProfileOrg,

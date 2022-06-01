@@ -65,8 +65,9 @@ function register_org_admin() {
     --id.secret ${id_secret} \
     --id.type   ${type} \
     --url       https://${ca_name} \
+    --id.affiliation  "" \
     --mspdir    /var/hyperledger/fabric-ca-client/${ca_name}/rcaadmin/msp \
-    --id.attrs  "hf.Registrar.Roles=client,hf.Registrar.Attributes=*,hf.Revoker=true,hf.GenCRL=true,admin=true:ecert,abac.init=true:ecert"
+    --id.attrs  "hf.Registrar.Roles=client,hf.Registrar.Attributes=*,hf.Revoker=true,hf.GenCRL=true,hf.AffiliationMgr=true,admin=true:ecert,abac.init=true:ecert"
 EOF
 }
 

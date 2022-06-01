@@ -60,7 +60,7 @@ export const createServer = async (): Promise<Application> => {
   }
 
 
-  app.use('/api/assets', authenticateApiKey, assetsRouter);
+  app.use('', authenticateApiKey, assetsRouter);
 
   // For everything else
   app.use((_req, res) =>
