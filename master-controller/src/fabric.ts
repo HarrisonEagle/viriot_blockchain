@@ -17,6 +17,7 @@ import * as config from './config';
 import { logger } from './logger';
 import { handleError } from './errors';
 import * as protos from 'fabric-protos';
+import FabricCAServices from "fabric-ca-client";
 
 /**
  * Creates an in memory wallet to hold credentials for an Org1 and Org2 user
@@ -187,4 +188,14 @@ export const getBlockHeight = async (
 
   logger.debug('Current block height: %d', blockHeight);
   return blockHeight;
+};
+
+export const buildCAClient = (ccp: Record<string, any>, caHostName: string): FabricCAServices => {
+  // Create a new CA client for interacting with the CA.
+  const caInfo = ccp.certificateAuthorities[caHostName]; // lookup CA details from config
+  const caTLSCACerts = caInfo.tlsCACerts.pem;
+  const caClient = new FabricCAServices(caInfo.url, { trustedRoots: caTLSCACerts, verify: false }, caInfo.caName);
+
+  console.log(`Built a CA Client named ${caInfo.caName}`);
+  return caClient;
 };

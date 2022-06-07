@@ -1,56 +1,257 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- */
+import { Request, Response } from "express";
+import { logger } from "./logger";
+import { Wallet } from "fabric-network";
+import { buildCAClient } from "./fabric";
+import * as config from "./config";
+import { body, validationResult } from "express-validator";
+import { getReasonPhrase, StatusCodes } from "http-status-codes";
+import { controller } from "./controller";
+import mongoose, { Schema, Document } from "mongoose";
 
-import { logger } from './logger';
-import passport from 'passport';
-import { NextFunction, Request, Response } from 'express';
-import { HeaderAPIKeyStrategy } from 'passport-headerapikey';
-import { StatusCodes, getReasonPhrase } from 'http-status-codes';
-import * as config from './config';
+const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
-const { UNAUTHORIZED } = StatusCodes;
+const userSchema = new mongoose.Schema({
+  userID: String,
+  password: String,
+  role: String,
+  certificate: String,
+  privateKey: String,
+});
 
-export const fabricAPIKeyStrategy: HeaderAPIKeyStrategy =
-  new HeaderAPIKeyStrategy(
-    { header: 'X-API-Key', prefix: '' },
-    false,
-    function (apikey, done) {
-      logger.debug({ apikey }, 'Checking X-API-Key');
-      if (apikey === config.orgApiKey) {
-        const user = config.mspIdOrg;
-        logger.debug('User set to %s', user);
-        done(null, user);
-      } else {
-        logger.debug({ apikey }, 'No valid X-API-Key');
-        return done(null, false);
-      }
-    }
-  );
+// Model (大文字・単数)
+export const User = mongoose.model('User', userSchema);
 
-export const authenticateApiKey = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  passport.authenticate(
-    'headerapikey',
-    { session: false },
-    (err, user, _info) => {
-      if (err) return next(err);
-      if (!user)
-        return res.status(UNAUTHORIZED).json({
-          status: getReasonPhrase(UNAUTHORIZED),
-          reason: 'NO_VALID_APIKEY',
-          timestamp: new Date().toISOString(),
-        });
+controller.put('/enrolladmin', async (req: Request, res: Response) => {
+    logger.debug('Create Admin request received');
+    const assetId = req.body.ID;
+    try {
+      const wallet = req.app.locals["wallet"] as Wallet;
+      logger.debug('Getting CA Client');
+      const caClient = buildCAClient(config.connectionProfileOrg, config.CA);
 
-      req.logIn(user, { session: false }, async (err) => {
-        if (err) {
-          return next(err);
-        }
-        return next();
+      logger.debug('Create Admin Enrollment');
+      // Enroll the admin user, and import the new identity into the wallet.
+      const enrollment = await caClient.enroll({ enrollmentID: config.orgAdminUser, enrollmentSecret: config.orgAdminPW});
+      const x509Identity = {
+        credentials: {
+          certificate: enrollment.certificate,
+          privateKey: enrollment.key.toBytes(),
+        },
+        mspId: config.mspIdOrg,
+        type: 'X.509',
+      };
+      logger.debug('Put Admin to Wallet');
+      await wallet.put(config.orgAdminUser, x509Identity);
+      return res.status(200).json({
+        result: 'OK',
+      });
+    } catch (err) {
+      logger.error(
+        { err },
+        'Error processing create asset request for asset ID %s',
+        assetId
+      );
+      return res.status(500).json({
+        error: err,
       });
     }
-  )(req, res, next);
-};
+  }
+);
+
+
+controller.post(
+  '/register',
+  body().isObject().withMessage('body must contain an user object'),
+  body('userID', 'must be a string').notEmpty(),
+  body('password', 'must be a string').notEmpty(),
+  body('role', 'must be a string').notEmpty(),
+  async (req: Request, res: Response) => {
+    logger.debug('Create User request received');
+
+    const errors = validationResult(req);
+    const session = await mongoose.startSession();
+    if (!errors.isEmpty()) {
+      return res.status(BAD_REQUEST).json({
+        status: getReasonPhrase(BAD_REQUEST),
+        reason: 'VALIDATION_ERROR',
+        message: 'Invalid request body',
+        timestamp: new Date().toISOString(),
+        errors: errors.array(),
+      });
+    }
+
+    const assetId = req.body.ID;
+
+    session.startTransaction();
+
+    try {
+      const wallet = req.app.locals["wallet"] as Wallet;
+      logger.debug('Creating Provider');
+
+      const adminIdentity = await wallet.get(config.orgAdminUser);
+      if (!adminIdentity) {
+        console.log('An identity for the admin user does not exist in the wallet');
+        console.log('Enroll the admin user before retrying');
+        return;
+      }
+
+      // build a user object for authenticating with the CA
+      const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
+      const adminUser = await provider.getUserContext(adminIdentity, config.orgAdminUser);
+
+
+      logger.debug('Creating CaClient');
+      const caClient = buildCAClient(config.connectionProfileOrg, config.CA);
+      // Register the user, enroll the user, and import the new identity into the wallet.
+      // if affiliation is specified by client, the affiliation value must be configured in CA
+      logger.debug('Registering User');
+      const secret = await caClient.register({
+        affiliation: config.orgCADepartment,
+        enrollmentID: req.body.userID,
+        role: req.body.role, //Put "Client"  * see line 70 of channel.sh
+        enrollmentSecret: req.body.password,
+      }, adminUser);
+      logger.debug('Enrolling User');
+      const enrollment = await caClient.enroll({
+        enrollmentID: req.body.userID,
+        enrollmentSecret: secret,
+      });
+      const x509Identity = {
+        credentials: {
+          certificate: enrollment.certificate,
+          privateKey: enrollment.key.toBytes(),
+        },
+        mspId: config.mspIdOrg,
+        type: 'X.509',
+      };
+      await wallet.put(req.body.User, x509Identity);
+      logger.debug('Calling Mongo');
+      const user = new User({
+        userID: req.body.userID,
+        password: req.body.password,
+        certificate: enrollment.certificate,
+        privateKey: enrollment.key.toBytes(),
+        role: req.body.role, //Put "Client"  * see line 70 of channel.sh
+      });
+      await user.save();
+      await session.commitTransaction();
+      await session.endSession();
+      return res.status(200).json({
+        result: 'OK',
+      });
+    } catch (err) {
+      await session.abortTransaction();
+      await session.endSession();
+      logger.error(
+        { err },
+        'Error processing create asset request for asset ID %s',
+        assetId
+      );
+      return res.status(500).json({
+        error: err,
+      });
+    }
+  }
+);
+
+controller.delete('/unregister',
+  body().isObject().withMessage('body must contain an user object'),
+  body('userID', 'must be a string').notEmpty(),
+  async (req: Request, res: Response) => {
+  console.log('Get all assets request received');
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const wallet = req.app.locals["wallet"] as Wallet;
+    logger.debug('Creating Provider');
+
+    const adminIdentity = await wallet.get(config.orgAdminUser);
+    if (!adminIdentity) {
+      console.log('An identity for the admin user does not exist in the wallet');
+      console.log('Enroll the admin user before retrying');
+      return;
+    }
+
+    const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
+    const adminUser = await provider.getUserContext(adminIdentity, config.orgAdminUser);
+
+    await User.deleteOne({ userID: req.body.userID});
+    logger.debug('Creating CaClient');
+    const caClient = buildCAClient(config.connectionProfileOrg, config.CA);
+    // Register the user, enroll the user, and import the new identity into the wallet.
+    // if affiliation is specified by client, the affiliation value must be configured in CA
+    logger.debug('Registering User');
+    await caClient.newIdentityService().delete(req.body.userID, adminUser);
+    await wallet.remove(req.body.userID);
+    await session.commitTransaction();
+    await session.endSession();
+    return res.status(OK).json({
+      message: "User unregistered successfully",
+    });
+  } catch (err) {
+    logger.error({ err }, 'Error processing get all assets request');
+    await session.abortTransaction();
+    await session.endSession();
+    return res.status(INTERNAL_SERVER_ERROR).json({
+      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+controller.get('/listUsers', async (req: Request, res: Response) => {
+  console.log('Get all assets request received');
+  try {
+    const wallet = req.app.locals["wallet"] as Wallet;
+    logger.debug('Creating Provider');
+
+    const adminIdentity = await wallet.get(config.orgAdminUser);
+    if (!adminIdentity) {
+      console.log('An identity for the admin user does not exist in the wallet');
+      console.log('Enroll the admin user before retrying');
+      return;
+    }
+    const users = await User.find({}, 'userID role');
+    return res.status(OK).send(users);
+  } catch (err) {
+    logger.error({ err }, 'Error processing get all assets request');
+    return res.status(INTERNAL_SERVER_ERROR).json({
+      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+controller.post('/login', async (req: Request, res: Response) => {
+  console.log('Get all assets request received');
+  try {
+
+
+    return res.status(OK).json({
+      message: "User unregistered successfully",
+    });
+  } catch (err) {
+    logger.error({ err }, 'Error processing get all assets request');
+    return res.status(INTERNAL_SERVER_ERROR).json({
+      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+controller.delete('/logout', async (req: Request, res: Response) => {
+  console.log('Get all assets request received');
+  try {
+
+
+    return res.status(OK).json({
+      message: "User unregistered successfully",
+    });
+  } catch (err) {
+    logger.error({ err }, 'Error processing get all assets request');
+    return res.status(INTERNAL_SERVER_ERROR).json({
+      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+      timestamp: new Date().toISOString(),
+    });
+  }
+});

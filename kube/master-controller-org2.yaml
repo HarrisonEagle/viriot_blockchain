@@ -58,6 +58,10 @@ spec:
               value: "org2adminpw"
             - name: HLF_CA_DEPARTMENT
               value: "org2.department1"
+            - name: MONGO_USERNAME
+              value: "root"
+            - name: MONGO_PASSWORD
+              value: "example"
 #            - name: REDIS_USERNAME
 #              value: redisuser
 #            - name: REDIS_PASSWORD
@@ -72,6 +76,10 @@ spec:
           image: redis:6.2.5
           ports:
             - containerPort: 6379
+        - name: mongo
+          image: mongo:5.0.9
+          ports:
+            - containerPort: 27017
 
 ---
 apiVersion: v1

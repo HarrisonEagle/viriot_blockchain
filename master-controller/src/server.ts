@@ -7,8 +7,8 @@ import helmet from 'helmet';
 import { getReasonPhrase, StatusCodes } from 'http-status-codes';
 import passport from 'passport';
 import pinoMiddleware from 'pino-http';
-import { assetsRouter } from './assets.router';
-import { authenticateApiKey, fabricAPIKeyStrategy } from './auth';
+import { controller } from './controller';
+import { authenticateAPI, fabricAPIKeyStrategy } from './middleware';
 import { logger } from './logger';
 import cors from 'cors';
 
@@ -60,7 +60,7 @@ export const createServer = async (): Promise<Application> => {
   }
 
 
-  app.use('', authenticateApiKey, assetsRouter);
+  app.use('', authenticateAPI, controller);
 
   // For everything else
   app.use((_req, res) =>

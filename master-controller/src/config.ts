@@ -261,3 +261,15 @@ export const orgCADepartment = env
   .example(`org1.department1`)
   .asString();
 
+export const orgMongoUser = env
+  .get('MONGO_USERNAME')
+  .default(`root`)
+  .example(`root`)
+  .asString();
+
+export const orgMongoPW = env
+  .get('MONGO_PASSWORD')
+  .default(`example`)
+  .example(`example`)
+  .asString();
+
