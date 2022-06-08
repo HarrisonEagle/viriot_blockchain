@@ -46,8 +46,8 @@ function pull_docker_images() {
   $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} ${FABRIC_PEER_IMAGE}
   $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} couchdb:3.2.1
 
-  $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} ghcr.io/hyperledger/fabric-rest-sample:latest
   $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} redis:6.2.5
+  $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} mongo:5.0.9
 
   pop_fn
 }

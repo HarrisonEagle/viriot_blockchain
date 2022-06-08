@@ -48,6 +48,20 @@ spec:
               value: "viriot-chaincode"
             - name: HLF_MSP_ID_ORG
               value: "Org1MSP"
+            - name: HLF_ORG_ID
+              value: "Org1"
+            - name: HLF_ORG_CA
+              value: "org1-ca"
+            - name: HLF_ORG_ADMIN
+              value: "org1admin"
+            - name: HLF_ORG_ADMINPW
+              value: "org1adminpw"
+            - name: HLF_CA_DEPARTMENT
+              value: "org1.department1"
+            - name: MONGO_USERNAME
+              value: "root"
+            - name: MONGO_PASSWORD
+              value: "example"
 #            - name: REDIS_USERNAME
 #              value: redisuser
 #            - name: REDIS_PASSWORD
@@ -62,6 +76,10 @@ spec:
           image: redis:6.2.5
           ports:
             - containerPort: 6379
+        - name: mongo
+          image: mongo:5.0.9
+          ports:
+            - containerPort: 27017
 
 ---
 apiVersion: v1
