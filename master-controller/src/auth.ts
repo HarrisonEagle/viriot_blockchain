@@ -11,6 +11,7 @@ import bcrypt from "bcrypt";
 import { authenticateAPI } from "./middleware";
 import jwt from "jsonwebtoken";
 import { createClient } from "redis";
+import { logLevel } from "./config";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED } = StatusCodes;
 
@@ -285,8 +286,7 @@ controller.delete('/logout',
       const blacklist = req.app.locals["blacklist"] as ReturnType<typeof createClient>;
       const token = res.locals.token as string;
       const now = new Date();
-      await blacklist.set(token, now.toUTCString());
-      await blacklist.expireAt(token, 2592000);
+      await blacklist.setEx(token, 2592000, now.toUTCString());
       return res.status(OK).json({
         message: "User Logouted successfully",
       });

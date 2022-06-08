@@ -35,7 +35,6 @@ export const authenticateAPI = async (
       throw new Error("cannot read secret from environment variables");
     }
     const tokenExpired = await blacklist.get(token);
-    logger.debug(tokenExpired!!);
     if(tokenExpired != null){
       logger.debug("token expired");
       throw new Error("token expired");
