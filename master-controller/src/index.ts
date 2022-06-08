@@ -11,9 +11,10 @@ import { buildCAClient, createGateway, createWallet, getContracts, getNetwork } 
 import { logger } from './logger';
 import { createServer } from './server';
 import mongoose from 'mongoose';
-import { orgMongoUser } from "./config";
+import { createClient } from "redis";
 import { Wallet } from "fabric-network";
 import { User } from "./auth";
+import bcrypt from "bcrypt";
 
 async function createAdmin(wallet: Wallet){
   logger.info('Creating Admin');
@@ -23,9 +24,10 @@ async function createAdmin(wallet: Wallet){
         const caClient = buildCAClient(config.connectionProfileOrg, config.CA);
         const enrollment = await caClient.enroll({ enrollmentID: config.orgAdminUser, enrollmentSecret: config.orgAdminPW});
         logger.debug('Creating Admin to mongodb');
+        const hashedPW = await bcrypt.hash(config.orgAdminPW, 10);
         const user = new User({
           userID: config.orgAdminUser,
-          password: config.orgAdminPW,
+          password: hashedPW,
           certificate: enrollment.certificate,
           privateKey: enrollment.key.toBytes(),
           role: "Admin",
@@ -51,24 +53,7 @@ async function createAdmin(wallet: Wallet){
   });
 }
 
-async function setupWallet(){
-  const wallet = await createWallet();
-  const users = await User.find({});
-  logger.info('Creating Wallet');
-  users.map(async user => {
-    const x509Identity = {
-      credentials: {
-        certificate: user.certificate,
-        privateKey: user.privateKey,
-      },
-      mspId: config.mspIdOrg,
-      type: 'X.509',
-    };
-    await wallet.put(user.userID, x509Identity);
-  });
-  return wallet;
-}
-
+// Mongooseが起動しなくなったらDocker Volumeを確認する
 async function main() {
   logger.info('Connecting to MongoDB');
   logger.info(`mongodb://localhost:27017/viriotuser`);
@@ -76,7 +61,8 @@ async function main() {
   logger.info('Checking Redis config');
 
   logger.info('Creating REST server');
-  const wallet = await setupWallet();
+  const wallet = await createWallet();
+  //第2引数にUserIDを渡すべき
   const gatewayOrg = await createGateway(
     config.connectionProfileOrg,
     config.mspIdOrg,
@@ -85,8 +71,16 @@ async function main() {
   const networkOrg = await getNetwork(gatewayOrg);
   const app = await createServer();
 
+
+  const blacklist = await createClient({
+    url: `redis://localhost:6379`
+  });
+  await blacklist.connect();
+
   logger.info('Connecting to Fabric network with org1 mspid');
   app.locals["wallet"] = wallet;
+  app.locals["blacklist"] = blacklist;
+
   app.locals[config.mspIdOrg] = await getContracts(networkOrg);
 
   await createAdmin(app.locals["wallet"] as Wallet);

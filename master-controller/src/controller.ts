@@ -23,7 +23,7 @@ import { body, validationResult } from 'express-validator';
 import { Contract, Wallet } from "fabric-network";
 import { getReasonPhrase, StatusCodes } from 'http-status-codes';
 import { AssetNotFoundError } from './errors';
-import { createGateway, createWallet, evatuateTransaction, buildCAClient } from "./fabric";
+import { createGateway, createWallet, evatuateTransaction, buildCAClient, getNetwork, getContracts } from "./fabric";
 import { logger } from './logger';
 import FabricCAServices from "fabric-ca-client";
 import * as config from "./config";
@@ -37,7 +37,14 @@ controller.get('/api/assets/', async (req: Request, res: Response) => {
   console.log('Get all assets request received');
   try {
     const mspId = req.user as string;
-    const contract = req.app.locals[mspId]?.assetContract as Contract;
+    const wallet = await createWallet();
+    const gatewayOrg = await createGateway(
+      config.connectionProfileOrg,
+      config.mspIdOrg,
+      wallet
+    );
+    const networkOrg = await getNetwork(gatewayOrg);
+    const contract =  await networkOrg.getContract(config.chaincodeName);
     const data = await contract.evaluateTransaction('GetAllAssets');
     let assets = [];
     if (data.length > 0) {
@@ -79,8 +86,14 @@ controller.post(
     const assetId = req.body.ID;
 
     try {
-      const mspId = req.user as string;
-      const contract = req.app.locals[mspId]?.assetContract as Contract;
+      const wallet = await createWallet();
+      const gatewayOrg = await createGateway(
+        config.connectionProfileOrg,
+        config.mspIdOrg,
+        wallet
+      );
+      const networkOrg = await getNetwork(gatewayOrg);
+      const contract =  await networkOrg.getContract(config.chaincodeName);
       await contract.submitTransaction(
         'CreateAsset',
         assetId,

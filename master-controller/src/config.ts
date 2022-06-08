@@ -205,12 +205,6 @@ export const privateKeyOrg = env
 /**
  * The host the Redis server is running on
  */
-export const redisHost = env
-  .get('REDIS_HOST')
-  .default('localhost')
-  .example('localhost')
-  .asString();
-
 /**
  * The port the Redis server is running on
  */
@@ -271,5 +265,11 @@ export const orgMongoPW = env
   .get('MONGO_PASSWORD')
   .default(`example`)
   .example(`example`)
+  .asString();
+
+export const jwtSecret= env
+  .get('JWT_SECRET')
+  .default(`UYG867ti867f(/&$SWRUco)(YPO/T`)
+  .example(`UYG867ti867f(/&$SWRUco)(YPO/T`)
   .asString();
 

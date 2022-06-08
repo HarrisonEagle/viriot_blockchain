@@ -5,52 +5,55 @@
 import { logger } from './logger';
 import passport from 'passport';
 import { NextFunction, Request, Response } from 'express';
-import { HeaderAPIKeyStrategy } from 'passport-headerapikey';
 import { StatusCodes, getReasonPhrase } from 'http-status-codes';
 import * as config from './config';
+import { createClient } from "redis";
+import { User } from "./auth";
+import jwt from "jsonwebtoken";
 
 const { UNAUTHORIZED } = StatusCodes;
 
-export const fabricAPIKeyStrategy: HeaderAPIKeyStrategy =
-  new HeaderAPIKeyStrategy(
-    { header: 'X-API-Key', prefix: '' },
-    false,
-    function (apikey, done) {
-      logger.debug({ apikey }, 'Checking X-API-Key');
-      if (apikey === config.orgApiKey) {
-        const user = config.mspIdOrg;
-        logger.debug('User set to %s', user);
-        done(null, user);
-      } else {
-        logger.debug({ apikey }, 'No valid X-API-Key');
-        return done(null, false);
-      }
-    }
-  );
+type TokenPayload = {
+  user_id: string;
+};
 
-export const authenticateAPI = (
+export const authenticateAPI = async (
   req: Request,
   res: Response,
   next: NextFunction
-): void => {
-  passport.authenticate(
-    'headerapikey',
-    { session: false },
-    (err, user, _info) => {
-      if (err) return next(err);
-      if (!user)
-        return res.status(UNAUTHORIZED).json({
-          status: getReasonPhrase(UNAUTHORIZED),
-          reason: 'NO_VALID_APIKEY',
-          timestamp: new Date().toISOString(),
-        });
-
-      req.logIn(user, { session: false }, async (err) => {
-        if (err) {
-          return next(err);
-        }
-        return next();
-      });
+  ) => {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (!token) {
+      logger.debug("Authoriztion header is not attached");
+      throw new Error("Authoriztion header is not attached");
     }
-  )(req, res, next);
+    const blacklist = req.app.locals["blacklist"] as ReturnType<typeof createClient>;
+    const secret = config.jwtSecret;
+    if (!secret) {
+      logger.debug("cannot read secret from environment variables");
+      throw new Error("cannot read secret from environment variables");
+    }
+    const tokenExpired = await blacklist.get(token);
+    logger.debug(tokenExpired!!);
+    if(tokenExpired != null){
+      logger.debug("token expired");
+      throw new Error("token expired");
+    }
+    const decoded: TokenPayload = jwt.verify(token, secret) as TokenPayload;;
+    const user = await User.findOne({
+      userID: decoded.user_id
+    });
+    if (!user) {
+      logger.debug("User Not found");
+      throw new Error("User Not found");
+    }
+    res.locals.token = token;
+    res.locals.user = user;
+    next();
+  } catch (err) {
+    return res.status(UNAUTHORIZED).json({
+      message: "Verification Failed!"
+    });
+  }
 };

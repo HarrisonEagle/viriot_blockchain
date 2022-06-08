@@ -8,7 +8,7 @@ import { getReasonPhrase, StatusCodes } from 'http-status-codes';
 import passport from 'passport';
 import pinoMiddleware from 'pino-http';
 import { controller } from './controller';
-import { authenticateAPI, fabricAPIKeyStrategy } from './middleware';
+import { authenticateAPI } from './middleware';
 import { logger } from './logger';
 import cors from 'cors';
 
@@ -41,11 +41,6 @@ export const createServer = async (): Promise<Application> => {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  //define passport startegy
-  passport.use(fabricAPIKeyStrategy);
-
-  //initialize passport js
-  app.use(passport.initialize());
 
   if (process.env.NODE_ENV === 'development') {
     app.use(cors());
@@ -60,7 +55,7 @@ export const createServer = async (): Promise<Application> => {
   }
 
 
-  app.use('', authenticateAPI, controller);
+  app.use('', controller);
 
   // For everything else
   app.use((_req, res) =>
