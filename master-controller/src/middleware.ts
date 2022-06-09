@@ -10,6 +10,8 @@ import * as config from './config';
 import { createClient } from "redis";
 import { User } from "./auth";
 import jwt from "jsonwebtoken";
+import { createGateway, getNetwork } from "./fabric";
+import { Wallet } from "fabric-network";
 
 const { UNAUTHORIZED } = StatusCodes;
 
@@ -23,6 +25,7 @@ export const authenticateAPI = async (
   next: NextFunction
   ) => {
   try {
+    const wallet = req.app.locals["wallet"] as Wallet;
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token) {
       logger.debug("Authoriztion header is not attached");
@@ -47,8 +50,16 @@ export const authenticateAPI = async (
       logger.debug("User Not found");
       throw new Error("User Not found");
     }
+    const gatewayOrg = await createGateway(
+      config.connectionProfileOrg,
+      user.userID,
+      wallet
+    );
+    const networkOrg = await getNetwork(gatewayOrg);
+    const contract =  await networkOrg.getContract(config.chaincodeName);
     res.locals.token = token;
     res.locals.user = user;
+    res.locals.contract = contract;
     next();
   } catch (err) {
     return res.status(UNAUTHORIZED).json({

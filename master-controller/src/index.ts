@@ -16,7 +16,7 @@ import { Wallet } from "fabric-network";
 import { User } from "./auth";
 import bcrypt from "bcrypt";
 
-async function createAdmin(wallet: Wallet){
+async function createAdmin(){
   logger.info('Creating Admin');
   User.find({userID: config.orgAdminUser},null, async function (err, docs) {
     if (docs.length == 0){
@@ -33,16 +33,6 @@ async function createAdmin(wallet: Wallet){
           role: "Admin",
         });
         await user.save();
-        const x509Identity = {
-          credentials: {
-            certificate: enrollment.certificate,
-            privateKey: enrollment.key.toBytes(),
-          },
-          mspId: config.mspIdOrg,
-          type: 'X.509',
-        };
-        logger.debug('Put Admin to Wallet');
-        await wallet.put(config.orgAdminUser, x509Identity);
       } catch (err) {
         logger.debug('Failed to Save Admin!');
         throw err;
@@ -62,15 +52,8 @@ async function main() {
 
   logger.info('Creating REST server');
   const wallet = await createWallet();
-  //第2引数にUserIDを渡すべき
-  const gatewayOrg = await createGateway(
-    config.connectionProfileOrg,
-    config.mspIdOrg,
-    wallet
-  );
-  const networkOrg = await getNetwork(gatewayOrg);
+  //Gatewayの第2引数にUserIDを渡すべき
   const app = await createServer();
-
 
   const blacklist = await createClient({
     url: `redis://localhost:6379`
@@ -80,10 +63,7 @@ async function main() {
   logger.info('Connecting to Fabric network with org1 mspid');
   app.locals["wallet"] = wallet;
   app.locals["blacklist"] = blacklist;
-
-  app.locals[config.mspIdOrg] = await getContracts(networkOrg);
-
-  await createAdmin(app.locals["wallet"] as Wallet);
+  await createAdmin();
 
   logger.info('Starting REST server');
   app.listen(config.port, () => {

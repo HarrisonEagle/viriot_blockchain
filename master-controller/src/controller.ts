@@ -28,23 +28,17 @@ import { logger } from './logger';
 import FabricCAServices from "fabric-ca-client";
 import * as config from "./config";
 import { orgAdminUser, orgCADepartment } from "./config";
+import { authenticateAPI } from "./middleware";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
 export const controller = express.Router();
 
-controller.get('/api/assets/', async (req: Request, res: Response) => {
+controller.get('/api/assets/',
+  async (req: Request, res: Response) => {
   console.log('Get all assets request received');
   try {
-    const mspId = req.user as string;
-    const wallet = await createWallet();
-    const gatewayOrg = await createGateway(
-      config.connectionProfileOrg,
-      config.mspIdOrg,
-      wallet
-    );
-    const networkOrg = await getNetwork(gatewayOrg);
-    const contract =  await networkOrg.getContract(config.chaincodeName);
+    const contract =  res.locals.contract as Contract;
     const data = await contract.evaluateTransaction('GetAllAssets');
     let assets = [];
     if (data.length > 0) {
@@ -61,6 +55,7 @@ controller.get('/api/assets/', async (req: Request, res: Response) => {
   }
 });
 
+// MiddlewareをbodyのVerificationの後に入れないとJSに変換した時エラーが出てしまう
 controller.post(
   '/api/assets/',
   body().isObject().withMessage('body must contain an asset object'),
@@ -86,14 +81,7 @@ controller.post(
     const assetId = req.body.ID;
 
     try {
-      const wallet = await createWallet();
-      const gatewayOrg = await createGateway(
-        config.connectionProfileOrg,
-        config.mspIdOrg,
-        wallet
-      );
-      const networkOrg = await getNetwork(gatewayOrg);
-      const contract =  await networkOrg.getContract(config.chaincodeName);
+      const contract =  res.locals.contract as Contract;
       await contract.submitTransaction(
         'CreateAsset',
         assetId,
@@ -119,77 +107,6 @@ controller.post(
   }
 );
 
-controller.options('/api/assets/:assetId', async (req: Request, res: Response) => {
-  const assetId = req.params.assetId;
-  logger.debug('Asset options request received for asset ID %s', assetId);
 
-  try {
-    const mspId = req.user as string;
-    const contract = req.app.locals[mspId]?.assetContract as Contract;
-
-    const data = await contract.evaluateTransaction( 'AssetExists', assetId);
-    const exists = data.toString() === 'true';
-
-    if (exists) {
-      return res
-        .status(OK)
-        .set({
-          Allow: 'DELETE,GET,OPTIONS,PATCH,PUT',
-        })
-        .json({
-          status: getReasonPhrase(OK),
-          timestamp: new Date().toISOString(),
-        });
-    } else {
-      return res.status(NOT_FOUND).json({
-        status: getReasonPhrase(NOT_FOUND),
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } catch (err) {
-    logger.error(
-      { err },
-      'Error processing asset options request for asset ID %s',
-      assetId
-    );
-    return res.status(INTERNAL_SERVER_ERROR).json({
-      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
-
-controller.get('/api/assets/:assetId', async (req: Request, res: Response) => {
-  const assetId = req.params.assetId;
-  logger.debug('Read asset request received for asset ID %s', assetId);
-
-  try {
-    const mspId = req.user as string;
-    const contract = req.app.locals[mspId]?.assetContract as Contract;
-
-    const data = await contract.evaluateTransaction( 'ReadAsset', assetId);
-    const asset = JSON.parse(data.toString());
-
-    return res.status(OK).json(asset);
-  } catch (err) {
-    logger.error(
-      { err },
-      'Error processing read asset request for asset ID %s',
-      assetId
-    );
-
-    if (err instanceof AssetNotFoundError) {
-      return res.status(NOT_FOUND).json({
-        status: getReasonPhrase(NOT_FOUND),
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return res.status(INTERNAL_SERVER_ERROR).json({
-      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 
