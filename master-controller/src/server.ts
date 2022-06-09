@@ -55,7 +55,7 @@ export const createServer = async (): Promise<Application> => {
   }
 
 
-  app.use('', controller);
+  app.use('', authenticateAPI, controller);
 
   // For everything else
   app.use((_req, res) =>

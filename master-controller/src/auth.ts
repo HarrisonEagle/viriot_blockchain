@@ -6,12 +6,10 @@ import * as config from "./config";
 import { body, validationResult } from "express-validator";
 import { getReasonPhrase, StatusCodes } from "http-status-codes";
 import { controller } from "./controller";
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose from "mongoose";
 import bcrypt from "bcrypt";
-import { authenticateAPI } from "./middleware";
 import jwt from "jsonwebtoken";
 import { createClient } from "redis";
-import { logLevel } from "./config";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED } = StatusCodes;
 
@@ -32,7 +30,6 @@ controller.post(
   body('userID', 'must be a string').notEmpty(),
   body('password', 'must be a string').notEmpty(),
   body('role', 'must be a string').notEmpty(),
-  authenticateAPI,
   async (req: Request, res: Response) => {
     logger.debug('Create User request received');
 
@@ -84,8 +81,11 @@ controller.post(
       const secret = await caClient.register({
         affiliation: config.orgCADepartment,
         enrollmentID: req.body.userID,
-        role: req.body.role, //Put "Client"  * see line 70 of channel.sh
+        role: "client", //Put "Client"  * see line 70 of channel.sh
         enrollmentSecret: req.body.password,
+        attrs: [
+          {name:"hf.Revoker", value:"true"},
+        ]
       }, adminUser);
       logger.debug('Enrolling User');
       const enrollment = await caClient.enroll({
@@ -123,14 +123,23 @@ controller.post(
 );
 
 controller.delete('/unregister',
-  authenticateAPI,
   body().isObject().withMessage('body must contain an user object'),
   body('userID', 'must be a string').notEmpty(),
   async (req: Request, res: Response) => {
-  console.log('Get all assets request received');
-  const session = await mongoose.startSession();
-  session.startTransaction();
+    console.log('Get all assets request received');
+    const session = await mongoose.startSession();
   try {
+    session.startTransaction();
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(BAD_REQUEST).json({
+        status: getReasonPhrase(BAD_REQUEST),
+        reason: 'VALIDATION_ERROR',
+        message: 'Invalid request body',
+        timestamp: new Date().toISOString(),
+        errors: errors.array(),
+      });
+    }
     const wallet = req.app.locals["wallet"] as Wallet;
     logger.debug('Creating Provider');
 
@@ -180,7 +189,6 @@ controller.delete('/unregister',
 });
 
 controller.get('/listUsers',
-  authenticateAPI,
   async (req: Request, res: Response) => {
   console.log('Get all assets request received');
   try {
@@ -273,7 +281,6 @@ controller.post('/login',
 });
 
 controller.delete('/logout',
-  authenticateAPI,
   async (req: Request, res: Response) => {
     console.log('Get all assets request received');
     try {

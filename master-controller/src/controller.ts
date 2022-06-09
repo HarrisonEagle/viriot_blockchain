@@ -20,15 +20,9 @@
 
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import { Contract, Wallet } from "fabric-network";
+import { Contract} from "fabric-network";
 import { getReasonPhrase, StatusCodes } from 'http-status-codes';
-import { AssetNotFoundError } from './errors';
-import { createGateway, createWallet, evatuateTransaction, buildCAClient, getNetwork, getContracts } from "./fabric";
 import { logger } from './logger';
-import FabricCAServices from "fabric-ca-client";
-import * as config from "./config";
-import { orgAdminUser, orgCADepartment } from "./config";
-import { authenticateAPI } from "./middleware";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
