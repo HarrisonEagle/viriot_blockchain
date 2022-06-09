@@ -8,6 +8,7 @@
     "npm": ">=5"
   },
   "dependencies": {
+    "@kubernetes/client-node": "^0.16.3",
     "@types/bcrypt": "^5.0.0",
     "@types/jsonwebtoken": "^8.5.8",
     "@types/mongoose": "^5.11.97",

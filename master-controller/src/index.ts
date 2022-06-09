@@ -13,6 +13,7 @@ import { createServer } from './server';
 import mongoose from 'mongoose';
 import { createClient } from "redis";
 import { Wallet } from "fabric-network";
+import * as k8s from '@kubernetes/client-node';
 import { User } from "./auth";
 import bcrypt from "bcrypt";
 
@@ -59,6 +60,17 @@ async function main() {
     url: `redis://localhost:6379`
   });
   await blacklist.connect();
+
+  const kc = new k8s.KubeConfig();
+  kc.loadFromDefault();
+
+  const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+  app.locals["k8sci"] = k8sApi;
+  /*
+  const result = await k8sApi.listPodForAllNamespaces();
+  logger.debug(result.response);
+  logger.debug(result.body)
+  */
 
   logger.info('Connecting to Fabric network with org1 mspid');
   app.locals["wallet"] = wallet;
