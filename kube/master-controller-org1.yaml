@@ -62,6 +62,8 @@ spec:
               value: "root"
             - name: MONGO_PASSWORD
               value: "example"
+            - name: JWT_SECRET
+              value: "UYG867ti867f(/&$SWRUco)(YPO/T"
 #            - name: REDIS_USERNAME
 #              value: redisuser
 #            - name: REDIS_PASSWORD
