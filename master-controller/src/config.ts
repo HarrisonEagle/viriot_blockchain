@@ -273,3 +273,35 @@ export const jwtSecret= env
   .example(`UYG867ti867f(/&$SWRUco)(YPO/T`)
   .asString();
 
+export const mqttDataBrokerHost = env
+  .get('MQTT_DATA_BROKER_HOST')
+  .default(`vernemq-org1.viriot-network.svc.cluster.local`)
+  .example(`vernemq-org1.viriot-network.svc.cluster.local`)
+  .asString();
+
+export const mqttDataBrokerPort = env
+  .get('MQTT_DATA_BROKER_PORT')
+  .default(`1883`)
+  .example(`1883`)
+  .asString();
+
+export const mqttControlBrokerSVCName = env
+  .get('MQTT_CONTROL_BROKER_SVC_NAME')
+  .default(`vernemq-org1`)
+  .example(`vernemq-org1`)
+  .asString();
+
+export const mqttControlBrokerHost = env
+  .get('MQTT_CONTROL_BROKER_HOST')
+  .default(`viriot-network.svc.cluster.local`)
+  .example(`viriot-network.svc.cluster.local`)
+  .asString();
+
+
+export const mqttControlBrokerPort = env
+  .get('MQTT_CONTROL_BROKER_PORT')
+  .default(`1883`)
+  .example(`1883`)
+  .asString();
+
+

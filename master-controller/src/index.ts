@@ -16,6 +16,8 @@ import { Wallet } from "fabric-network";
 import * as k8s from '@kubernetes/client-node';
 import { User } from "./auth";
 import bcrypt from "bcrypt";
+import * as mqtt from 'mqtt'
+import { mqttControlBrokerPort, mqttControlBrokerSVCName } from "./config";
 
 async function createAdmin(){
   logger.info('Creating Admin');
@@ -44,6 +46,10 @@ async function createAdmin(){
   });
 }
 
+
+
+
+
 // Mongooseが起動しなくなったらDocker Volumeを確認する
 async function main() {
   logger.info('Connecting to MongoDB');
@@ -60,22 +66,36 @@ async function main() {
     url: `redis://localhost:6379`
   });
   await blacklist.connect();
-
   const kc = new k8s.KubeConfig();
   kc.loadFromDefault();
 
   const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-  app.locals["k8sci"] = k8sApi;
+  app.locals["k8sapi"] = k8sApi;
   /*
   const result = await k8sApi.listPodForAllNamespaces();
   logger.debug(result.response);
   logger.debug(result.body)
   */
-
   logger.info('Connecting to Fabric network with org1 mspid');
   app.locals["wallet"] = wallet;
   app.locals["blacklist"] = blacklist;
   await createAdmin();
+
+  const mqttClient  = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`)
+  mqttClient.on('connect', () => {
+    logger.info("Success to connect MQTT!");
+    //mqttClient.subscribe('presence');
+    //mqttClient.publish('presence', 'Hello mqtt');
+  })
+  mqttClient.on('message', (topic:String, message:Buffer) => {
+    // message is Buffer
+    logger.info("received MQTT Mesaage:"+message.toString())
+  })
+  mqttClient.on('error', function(err){
+    logger.info("MQTT Got ERROR!");
+    logger.info(err);
+  });
+  app.locals["mqtt"] = mqttClient;
 
   logger.info('Starting REST server');
   app.listen(config.port, () => {
