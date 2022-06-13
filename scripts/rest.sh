@@ -77,9 +77,12 @@ function launch_master_controller() {
   kubectl -n $NS delete configmap viriot-master-controller-config-org2 || true
   kubectl -n $NS create configmap viriot-master-controller-config-org2 --from-file=$CONFIG_DIR
 
+  apply_template kube/vernemq-mqtt-org1.yaml
   apply_template kube/master-controller-org1.yaml
+
   kubectl -n $NS rollout status deploy/viriot-master-controller-org1
 
+  apply_template kube/vernemq-mqtt-org2.yaml
   apply_template kube/master-controller-org2.yaml
   kubectl -n $NS rollout status deploy/viriot-master-controller-org2
 

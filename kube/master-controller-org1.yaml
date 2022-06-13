@@ -64,6 +64,16 @@ spec:
               value: "example"
             - name: JWT_SECRET
               value: "UYG867ti867f(/&$SWRUco)(YPO/T"
+            - name: MQTT_DATA_BROKER_HOST
+              value: "vernemq-org1.viriot-network.svc.cluster.local"
+            - name: MQTT_DATA_BROKER_PORT
+              value: "1883"
+            - name: MQTT_CONTROL_BROKER_SVC_NAME
+              value: "vernemq-org1"
+            - name: MQTT_CONTROL_BROKER_HOST
+              value: "viriot-network.svc.cluster.local"
+            - name: MQTT_CONTROL_BROKER_PORT
+              value: "1883"
 #            - name: REDIS_USERNAME
 #              value: redisuser
 #            - name: REDIS_PASSWORD
