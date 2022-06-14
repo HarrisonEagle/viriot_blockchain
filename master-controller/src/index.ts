@@ -18,6 +18,7 @@ import { User } from "./auth";
 import bcrypt from "bcrypt";
 import * as mqtt from 'mqtt'
 import { mqttControlBrokerPort, mqttControlBrokerSVCName } from "./config";
+import { getDeployZoneOnKubernetes } from "./util";
 
 async function createAdmin(){
   logger.info('Creating Admin');
