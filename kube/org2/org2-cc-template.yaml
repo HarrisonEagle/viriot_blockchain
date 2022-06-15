@@ -18,6 +18,9 @@ spec:
       labels:
         app: org2{{PEER_NAME}}-ccaas-{{CHAINCODE_NAME}}
     spec:
+      nodeSelector:
+        viriot-zone-gw: "true"
+        viriot-zone: "USA"
       containers:
         - name: main
           image: {{CHAINCODE_IMAGE}}

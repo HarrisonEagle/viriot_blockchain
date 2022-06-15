@@ -438,6 +438,7 @@ spec:
         app.kubernetes.io/instance: ingress-nginx
         app.kubernetes.io/name: ingress-nginx
     spec:
+      nodeName: "kind-control-plane"
       containers:
       - args:
         - /nginx-ingress-controller
@@ -562,6 +563,7 @@ spec:
         helm.sh/chart: ingress-nginx-4.0.18
       name: ingress-nginx-admission-create
     spec:
+      nodeName: "kind-control-plane"
       containers:
       - args:
         - create
@@ -616,6 +618,7 @@ spec:
         helm.sh/chart: ingress-nginx-4.0.18
       name: ingress-nginx-admission-patch
     spec:
+      nodeName: "kind-control-plane"
       containers:
       - args:
         - patch
