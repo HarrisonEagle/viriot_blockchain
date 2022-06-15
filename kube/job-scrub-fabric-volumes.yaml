@@ -16,7 +16,7 @@ spec:
       name: job-scrub-fabric-volumes
     spec:
       nodeSelector:
-        viriot-master: "true"
+        viriot-zone: "Orderer"
       restartPolicy: "Never"
       containers:
         - name: main

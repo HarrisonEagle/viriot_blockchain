@@ -39,6 +39,9 @@ spec:
       labels:
         app: org1-ca
     spec:
+      nodeSelector:
+        viriot-zone-gw: "true"
+        viriot-zone: "Japan"
       containers:
         - name: main
           image: ${FABRIC_CONTAINER_REGISTRY}/fabric-ca:${FABRIC_CA_VERSION}

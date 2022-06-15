@@ -17,6 +17,9 @@ spec:
       labels:
         app: viriot-master-controller-org1
     spec:
+      nodeSelector:
+        viriot-zone-gw: "true"
+        viriot-zone: "Japan"
       containers:
         - name: main
           image: viriot/mastercontroller-on-fabric

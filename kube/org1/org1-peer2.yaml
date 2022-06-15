@@ -74,6 +74,9 @@ spec:
         app: org1-peer2
         org: org1
     spec:
+      nodeSelector:
+        viriot-zone-gw: "true"
+        viriot-zone: "Japan"
       containers:
         - name: main
           image: ${FABRIC_PEER_IMAGE}

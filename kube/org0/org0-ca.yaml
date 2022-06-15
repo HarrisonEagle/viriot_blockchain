@@ -39,6 +39,8 @@ spec:
       labels:
         app: org0-ca
     spec:
+      nodeSelector:
+        viriot-zone: "Orderer"
       containers:
         - name: main
           image: ${FABRIC_CONTAINER_REGISTRY}/fabric-ca:${FABRIC_CA_VERSION}
