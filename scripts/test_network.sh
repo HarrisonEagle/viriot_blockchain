@@ -164,10 +164,6 @@ function network_up() {
   init_storage_volumes
   load_org_config
 
-  kubectl label nodes --overwrite kind-control-plane viriot-zone-gw=true
-  kubectl label nodes --overwrite kind-control-plane viriot-zone=Japan
-  kubectl label nodes --overwrite kind-control-plane topology.kubernetes.io/zone=Japan
-
   # Network TLS CAs
   init_tls_cert_issuers
 

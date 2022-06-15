@@ -40,6 +40,8 @@ nodes:
       - containerPort: 443
         hostPort: ${ingress_https_port}
         protocol: TCP
+  - role: worker
+  - role: worker
 #networking:
 #  kubeProxyMode: "ipvs"
 
@@ -57,6 +59,11 @@ EOF
     docker exec "$node" sysctl net.ipv4.conf.all.route_localnet=1;
   done
 
+  kubectl label nodes --overwrite kind-control-plane viriot-master=true
+  kubectl label nodes --overwrite kind-worker viriot-zone=Japan
+  kubectl label nodes --overwrite kind-worker viriot-zone-gw=true
+  kubectl label nodes --overwrite kind-worker2 viriot-zone=USA
+  kubectl label nodes --overwrite kind-worker2 viriot-zone-gw=true
   pop_fn
 }
 

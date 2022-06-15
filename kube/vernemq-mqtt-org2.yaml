@@ -17,6 +17,7 @@ spec:
     spec:
       nodeSelector:
         viriot-zone-gw: "true"
+        viriot-zone: "USA"
       shareProcessNamespace: true
       serviceAccountName: vernemq
       containers:
