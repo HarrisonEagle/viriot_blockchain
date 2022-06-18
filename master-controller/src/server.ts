@@ -56,6 +56,8 @@ export const createServer = async (): Promise<Application> => {
 
 
   app.use('', authenticateAPI, controller);
+  logger.info("Routes:");
+  logger.info(controller.stack);
 
   // For everything else
   app.use((_req, res) =>

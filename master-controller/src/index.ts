@@ -19,6 +19,11 @@ import bcrypt from "bcrypt";
 import * as mqtt from 'mqtt'
 import { mqttControlBrokerPort, mqttControlBrokerSVCName } from "./config";
 import { getDeployZoneOnKubernetes } from "./util";
+import { mqttCallBack } from "./mqttcallback";
+import { controller } from "./controller";
+import Bull from "bull";
+
+export const backgroundTaskQueue = new Bull('viriot-background');
 
 async function createAdmin(){
   logger.info('Creating Admin');
@@ -70,8 +75,8 @@ async function main() {
   const kc = new k8s.KubeConfig();
   kc.loadFromDefault();
 
-  const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-  app.locals["k8sapi"] = k8sApi;
+  //const k8sApi = kc.makeApiClient(k8s.AppsV1Api);
+  app.locals["k8sconfig"] = kc;
   /*
   const result = await k8sApi.listPodForAllNamespaces();
   logger.debug(result.response);
@@ -89,15 +94,19 @@ async function main() {
     //mqttClient.publish('presence', 'Hello mqtt');
   })
   mqttClient.on('message', (topic:String, message:Buffer) => {
-    // message is Buffer
-    logger.info("received MQTT Mesaage:"+message.toString())
+    if(mqttCallBack.has(topic)){
+      const callback = mqttCallBack.get(topic)!;
+      callback();
+    }else{
+      logger.info("received MQTT Topic Message without callback:"+topic.toString())
+    }
+    logger.info("received MQTT Mesaage:"+message.toString());
   })
   mqttClient.on('error', function(err){
     logger.info("MQTT Got ERROR!");
     logger.info(err);
   });
   app.locals["mqtt"] = mqttClient;
-
   logger.info('Starting REST server');
   app.listen(config.port, () => {
     logger.info('REST server started on port: %d', config.port);

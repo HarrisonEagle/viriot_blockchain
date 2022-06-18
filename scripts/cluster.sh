@@ -48,6 +48,7 @@ function pull_docker_images() {
 
   $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} redis:6.2.5
   $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} mongo:5.0.9
+  $CONTAINER_CLI pull ${CONTAINER_NAMESPACE} fed4iot/v-weather-tv:2.3
 
   pop_fn
 }
