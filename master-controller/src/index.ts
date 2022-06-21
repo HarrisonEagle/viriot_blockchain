@@ -21,9 +21,9 @@ import { mqttControlBrokerPort, mqttControlBrokerSVCName } from "./config";
 import { getDeployZoneOnKubernetes } from "./util";
 import { mqttCallBack } from "./mqttcallback";
 import { controller } from "./controller";
-import Bull from "bull";
+import { Queue, QueueScheduler, Worker } from "bullmq";
+import { addBackgroundJob, initJobQueue, initJobQueueScheduler, initJobQueueWorker } from "./jobs";
 
-export const backgroundTaskQueue = new Bull('viriot-background');
 
 async function createAdmin(){
   logger.info('Creating Admin');
@@ -52,11 +52,24 @@ async function createAdmin(){
   });
 }
 
+let jobQueue: Queue | undefined;
+let jobQueueWorker: Worker | undefined;
+let jobQueueScheduler: QueueScheduler | undefined;
+
+export const kc = new k8s.KubeConfig();
+export const mqttClient = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`)
 
 
-
-
+// TODO: すべての開発が終わったら CAとPeerのimagePullSecrets:
+//             - name: tunaclocred
+// を消す
+//
+// kubectl create secret generic tunaclocred \                                                                                              2022年06月18日 21時01分30秒
+//            --from-file=.dockerconfigjson=$HOME/.docker/config.json \
+//            --type=kubernetes.io/dockerconfigjson
+//
 // Mongooseが起動しなくなったらDocker Volumeを確認する
+// db.user.find({}, {name:1, _id:0}) _id:0 を指定すると id がmongoDBの結果に出なくなる
 async function main() {
   logger.info('Connecting to MongoDB');
   logger.info(`mongodb://localhost:27017/viriotuser`);
@@ -69,10 +82,9 @@ async function main() {
   const app = await createServer();
 
   const blacklist = await createClient({
-    url: `redis://localhost:6379`
+    url: `redis://localhost:6380`
   });
   await blacklist.connect();
-  const kc = new k8s.KubeConfig();
   kc.loadFromDefault();
 
   //const k8sApi = kc.makeApiClient(k8s.AppsV1Api);
@@ -87,7 +99,16 @@ async function main() {
   app.locals["blacklist"] = blacklist;
   await createAdmin();
 
-  const mqttClient  = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`)
+  logger.info('Initialising submit job queue');
+  jobQueue = initJobQueue();
+  jobQueueWorker = initJobQueueWorker(app);
+  if (config.submitJobQueueScheduler) {
+    logger.info('Initialising submit job queue scheduler');
+    jobQueueScheduler = initJobQueueScheduler();
+  }
+  app.locals.jobq = jobQueue;
+
+
   mqttClient.on('connect', () => {
     logger.info("Success to connect MQTT!");
     //mqttClient.subscribe('presence');

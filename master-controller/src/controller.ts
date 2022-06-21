@@ -41,7 +41,9 @@ import {
   ENV,
   ServiceInstance
 } from "./k8s";
-import { backgroundTaskQueue } from "./index";
+import { Queue } from "bullmq";
+import { addBackgroundJob } from "./jobs";
+import { createThingVisorOnKubernetes } from "./thingvisor";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
@@ -120,8 +122,7 @@ controller.post(
   }
 );
 
-const thingVisorPrefix = "TV";
-const outControlSuffix = "c_out"
+
 
 controller.post('/addThingVisor',
   body('thingVisorID', 'must be a string').notEmpty(),
@@ -165,9 +166,14 @@ controller.post('/addThingVisor',
       }
       const kc = req.app.locals["k8sconfig"] as k8s.KubeConfig;
       const mqttc = res.app.locals["mqtt"] as  mqtt.MqttClient;
+      const submitQueue = req.app.locals.jobq as Queue;
+      await addBackgroundJob(
+        submitQueue,
+        "create_thingvisor",
+        req.body
+      );
 
-
-      backgroundTaskQueue.process(async function(){
+      /*backgroundTaskQueue.process(async function(){
         const topic = `${thingVisorPrefix}/${req.body.thingVisorID}/${outControlSuffix}`
         mqttCallBack.set(topic, onTvOutControlMessage);
         mqttc.subscribe(topic);
@@ -204,9 +210,9 @@ controller.post('/addThingVisor',
               const tvImgName = container.image!;
               const url = `https://hub.docker.com/v2/repositories/${tvImgName.split(":")[0]}`
 
-              /*const response = await fetch(url,{
+              /!*const response = await fetch(url,{
                 method: 'HEAD',
-              });*/
+              });*!/
             }
             yaml.spec!.selector.matchLabels!.thingVisorID = labelApp;
             yaml.spec!.template.metadata!.labels!.thingVisorID = labelApp;
@@ -248,7 +254,9 @@ controller.post('/addThingVisor',
             logger.debug("ThingVisor Created!");
           }
         }
-      });
+      });*/
+
+
       return res.status(OK).json({
         result: "Thing Visor is Starting",
       });

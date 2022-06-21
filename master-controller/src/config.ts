@@ -15,6 +15,9 @@
 
 import * as env from 'env-var';
 
+export const JOB_QUEUE_NAME = 'submit';
+
+
 export const ORG = env
   .get('HLF_ORG_ID')
   .default(`Org1`)
@@ -208,6 +211,12 @@ export const privateKeyOrg = env
 /**
  * The port the Redis server is running on
  */
+export const redisHost = env
+  .get('REDIS_HOST')
+  .default('localhost')
+  .example('localhost')
+  .asString();
+
 export const redisPort = env
   .get('REDIS_PORT')
   .default('6379')

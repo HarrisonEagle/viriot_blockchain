@@ -80,7 +80,7 @@ spec:
       containers:
         - name: main
           image: ${FABRIC_PEER_IMAGE}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           envFrom:
             - configMapRef:
                 name: org1-peer1-config
@@ -98,7 +98,7 @@ spec:
               readOnly: true
         - name: couchdb
           image: couchdb:3.2.1
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           env:
             - name: "COUCHDB_USER"
               value: "admin" 

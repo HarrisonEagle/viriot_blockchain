@@ -87,10 +87,22 @@ spec:
                 name: viriot-master-controller-config-org1
           ports:
             - containerPort: 3000
-        - name: redis
+        - name: redis-bullmq
           image: redis:6.2.5
           ports:
             - containerPort: 6379
+          args:
+            - "--port"
+            - "6379"
+        - name: redis-blacklist
+          image: redis:6.2.5
+          command:
+            - "redis-server"
+          args:
+            - "--port"
+            - "6380"
+          ports:
+            - containerPort: 6380
         - name: mongo
           image: mongo:5.0.9
           ports:
