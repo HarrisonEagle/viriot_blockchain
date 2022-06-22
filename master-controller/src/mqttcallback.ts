@@ -1,6 +1,7 @@
+import { logger } from "./logger";
 
-export const mqttCallBack = new Map<String,()=>void>();
+export const mqttCallBack = new Map<String,() => Promise<void>>();
 
-export const onTvOutControlMessage = () => {
-    mqttCallBack.set("shit", onTvOutControlMessage);
+export const onTvOutControlMessage = async () => {
+  logger.debug("Receiverd Test Callback command");
 };

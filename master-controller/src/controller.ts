@@ -43,7 +43,6 @@ import {
 } from "./k8s";
 import { Queue } from "bullmq";
 import { addBackgroundJob } from "./jobs";
-import { createThingVisorOnKubernetes } from "./thingvisor";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
@@ -172,89 +171,6 @@ controller.post('/addThingVisor',
         "create_thingvisor",
         req.body
       );
-
-      /*backgroundTaskQueue.process(async function(){
-        const topic = `${thingVisorPrefix}/${req.body.thingVisorID}/${outControlSuffix}`
-        mqttCallBack.set(topic, onTvOutControlMessage);
-        mqttc.subscribe(topic);
-        const env : ENV= {
-          MQTTDataBrokerIP: mqttDataBrokerHost,
-          MQTTDataBrokerPort: mqttDataBrokerPort,
-          MQTTControlBrokerIP: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
-          MQTTControlBrokerPort: mqttControlBrokerPort,
-          params: req.body.params,
-          thingVisorID: req.body.thingVisorID,
-          //systemDatabaseIP: mong,
-          //systemDatabasePort: mongo_port
-        }
-        const debugMode = req.body.debug_mode;
-        let exposedorts= {};
-        let deploymentName = "error";
-        let serviceName = "";
-        let deploymentsNamesList = [];
-        let servicesNamesList = [];
-        let servicesHostsAlias : ServiceInstance[] = [];
-        const labelApp = req.body.thingVisorID.toLowerCase().replace("_", "-");
-        let yamlFiles = req.body.yamlFiles;
-        for(let y of yamlFiles){
-          if(y.kind === "Deployment"){
-            const yaml = y as k8s.V1Deployment;
-            logger.debug("Deployment Creation");
-            yaml.metadata!.name += "-" + req.body.thingVisorID.toLowerCase().replace("_", "-");
-            for(let container of yaml.spec!.template.spec!.containers){
-              if("env" in container) {
-                container.env = convertEnv(env, container['env']!);
-              }else{
-                container.env = convertEnv(env, []);
-              }
-              const tvImgName = container.image!;
-              const url = `https://hub.docker.com/v2/repositories/${tvImgName.split(":")[0]}`
-
-              /!*const response = await fetch(url,{
-                method: 'HEAD',
-              });*!/
-            }
-            yaml.spec!.selector.matchLabels!.thingVisorID = labelApp;
-            yaml.spec!.template.metadata!.labels!.thingVisorID = labelApp;
-
-            //TODO
-            yaml.spec!.template.spec!.nodeSelector = {"viriot-zone": req.body.tvZone};
-            //yaml["spec"]["template"]["spec"]["nodeSelector"] = {"viriot-zone": req.body.tvZone}
-
-            const deploymentName = yaml.metadata!.name;
-            deploymentsNamesList.push(deploymentName);
-          }else if(y.kind === "Service"){
-            const yaml = y as k8s.V1Service;
-            logger.debug("Service Creation");
-            const serviceName = yamlFiles.metadata.name + "-" + req.body.thingVisorID.toLowerCase().replace("_", "-");
-            const serviceInstance : ServiceInstance = {prec: yaml.metadata!.name!, cluser_ip: ""};
-            yaml.metadata!.name = serviceName;
-            yaml.spec!.selector!.thingVisorID = labelApp;
-            const apiResponseService = await createServiceFromYaml(kc, "viriot-network", yaml);
-            serviceInstance.cluser_ip = apiResponseService.body.spec?.clusterIP!;
-            servicesHostsAlias.push(serviceInstance);
-            servicesNamesList.push(serviceName);
-          }else{
-            logger.debug(`Error: yaml kind not supported (thingVisor): ${req.body.thingVisorID}`);
-          }
-        }
-
-        for(let y of yamlFiles){
-          if(y.kind === "Deployment"){
-            const yaml = y as k8s.V1Deployment;
-            logger.debug("Injecting hostAliases for Deployment");
-            if("hostAliases" in yaml.spec!.template.spec!){
-              yaml.spec!.template.spec!.hostAliases = convertHostAliases(servicesHostsAlias, yaml.spec!.template.spec.hostAliases);
-            }else{
-              yaml.spec!.template.spec!.hostAliases = convertHostAliases(servicesHostsAlias, []);
-            }
-            logger.debug("Creating Deployment");
-            logger.debug(yaml);
-            await createDeploymentFromYaml(kc, "viriot-network", yaml);
-            logger.debug("ThingVisor Created!");
-          }
-        }
-      });*/
 
 
       return res.status(OK).json({

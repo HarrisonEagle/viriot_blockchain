@@ -57,7 +57,14 @@ let jobQueueWorker: Worker | undefined;
 let jobQueueScheduler: QueueScheduler | undefined;
 
 export const kc = new k8s.KubeConfig();
-export const mqttClient = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`)
+//同一ノードじゃないと効かない可能性?
+//文字によってはTopicとして使えない?
+export const mqttClient = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`,{
+  clientId: 'viriot-mqtt',
+  clean: false,
+  keepalive:5000, //必要なかったら消す
+  reconnectPeriod: 1000 //必要なかったら消す
+})
 
 
 // TODO: すべての開発が終わったら CAとPeerのimagePullSecrets:
@@ -114,15 +121,15 @@ async function main() {
     //mqttClient.subscribe('presence');
     //mqttClient.publish('presence', 'Hello mqtt');
   })
-  mqttClient.on('message', (topic:String, message:Buffer) => {
+  mqttClient.on('message', async (topic:String, message:Buffer) => {
     if(mqttCallBack.has(topic)){
       const callback = mqttCallBack.get(topic)!;
-      callback();
+      await callback();
     }else{
       logger.info("received MQTT Topic Message without callback:"+topic.toString())
     }
     logger.info("received MQTT Mesaage:"+message.toString());
-  })
+  });
   mqttClient.on('error', function(err){
     logger.info("MQTT Got ERROR!");
     logger.info(err);

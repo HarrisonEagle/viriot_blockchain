@@ -33,15 +33,17 @@ const outControlSuffix = "c_out"
 export const createThingVisorOnKubernetes = async (
   debugMode: boolean,
   thingVisorID: string,
-  thingVisorParams: any,
+  thingVisorParams: string,
   thingVisorDescription: string,
   yamlFiles: k8s.V1Deployment[] | k8s.V1Service[],
   deployZone: string,
 ) => {
   logger.debug("Creating Thing Visor On K8s");
-  const topic = `${thingVisorPrefix}/${thingVisorID}/${outControlSuffix}`
+  const topic = `${thingVisorPrefix}/${thingVisorID}/${outControlSuffix}`;
+  logger.debug("Subsribed Topic:"+topic);
   mqttCallBack.set(topic, onTvOutControlMessage);
   mqttClient.subscribe(topic);
+  logger.debug("params:"+thingVisorParams)
   const env : ENV= {
     MQTTDataBrokerIP: mqttDataBrokerHost,
     MQTTDataBrokerPort: mqttDataBrokerPort,
@@ -120,6 +122,6 @@ export const createThingVisorOnKubernetes = async (
       }
     }
   }catch (e) {
-
+    logger.debug("Error to Create ThingVisor!");
   }
 }

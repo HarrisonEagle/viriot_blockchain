@@ -87,7 +87,7 @@ export const processBackgroundJob = async (
     await createThingVisorOnKubernetes(
       job.data.reqBody.debug_mode === "true",
       job.data.reqBody.thingVisorID,
-      job.data.reqBody.params,
+      JSON.stringify(job.data.reqBody.params),
       job.data.reqBody.description,
       job.data.reqBody.yamlFiles,
       job.data.reqBody.tvZone
