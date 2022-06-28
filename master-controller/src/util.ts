@@ -41,3 +41,22 @@ export async function getDeployZoneOnKubernetes(tvZone: string, k8s: k8s.CoreV1A
     console.log(err);
   }
 }
+
+export function dnsSubdomainConverter(s: string){
+  let last;
+  const regex = new RegExp('^[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?');
+  s = s.toLowerCase();
+  let ls = Array.from(s);
+
+  while (true) {
+    regex.exec(s);
+    last = regex.lastIndex;
+    if (last === s.length) {
+      break;
+    }
+
+    ls[last] = "-";
+    s = ls.join('');
+  }
+  return s;
+}

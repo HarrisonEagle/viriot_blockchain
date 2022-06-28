@@ -88,7 +88,7 @@ export const createThingVisorOnKubernetes = async (
         //yaml.spec!.template.spec!.nodeSelector = {"viriot-zone": req.body.tvZone};
         //yaml["spec"]["template"]["spec"]["nodeSelector"] = {"viriot-zone": req.body.tvZone}
 
-        const deploymentName = yaml.metadata!.name;
+        deploymentName = yaml.metadata!.name!;
         deploymentsNamesList.push(deploymentName);
       }else if(y.kind === "Service"){
         const yaml = y as k8s.V1Service;

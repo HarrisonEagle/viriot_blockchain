@@ -43,6 +43,7 @@ import {
 } from "./k8s";
 import { Queue } from "bullmq";
 import { addBackgroundJob } from "./jobs";
+import { dnsSubdomainConverter } from "./util";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
 
@@ -152,17 +153,15 @@ controller.post('/addThingVisor',
         ip: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
         port: mqttControlBrokerPort
       };
-      const thingVisorEntry = {
-        creationTime: new Date().toISOString(),
-        tvDescription: req.body.description,
-        imageName: req.body.imageName,
-        debug_mode: req.body.debug_mode,
-        vThings: [],
-        params: req.body.params,
-        MQTTDataBroker: mqttDataBroker,
-        MQTTControlBroker: mqttControlBroker,
-        //IP: default_gateway_IP,
-      }
+      const tvId : string = req.body.thingVisorID;
+      /*
+      const tvIdDns : string = dnsSubdomainConverter(tvId);
+      if(tvId != tvIdDns){
+        logger.info("Add fails - ThingVisorID must be a subdomain name");
+        return res.status(409).json({
+          message: "Add fails - ThingVisorID must be a subdomain name, regex('^[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?') - suggested name is: " + tvIdDns
+        });
+      }*/
       const kc = req.app.locals["k8sconfig"] as k8s.KubeConfig;
       const mqttc = res.app.locals["mqtt"] as  mqtt.MqttClient;
       const submitQueue = req.app.locals.jobq as Queue;
