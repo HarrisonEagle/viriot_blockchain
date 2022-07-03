@@ -52,7 +52,7 @@ async function createAdmin(){
   });
 }
 
-let jobQueue: Queue | undefined;
+export let jobQueue: Queue | undefined;
 let jobQueueWorker: Worker | undefined;
 let jobQueueScheduler: QueueScheduler | undefined;
 
@@ -65,6 +65,8 @@ export const mqttClient = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName
   keepalive:5000, //必要なかったら消す
   reconnectPeriod: 1000 //必要なかったら消す
 })
+
+export let wallet : Wallet | undefined;
 
 
 // TODO: すべての開発が終わったら CAとPeerのimagePullSecrets:
@@ -84,7 +86,7 @@ async function main() {
   logger.info('Checking Redis config');
 
   logger.info('Creating REST server');
-  const wallet = await createWallet();
+  wallet = await createWallet();
   //Gatewayの第2引数にUserIDを渡すべき
   const app = await createServer();
 
@@ -102,7 +104,6 @@ async function main() {
   logger.debug(result.body)
   */
   logger.info('Connecting to Fabric network with org1 mspid');
-  app.locals["wallet"] = wallet;
   app.locals["blacklist"] = blacklist;
   await createAdmin();
 
@@ -113,18 +114,16 @@ async function main() {
     logger.info('Initialising submit job queue scheduler');
     jobQueueScheduler = initJobQueueScheduler();
   }
-  app.locals.jobq = jobQueue;
-
 
   mqttClient.on('connect', () => {
     logger.info("Success to connect MQTT!");
     //mqttClient.subscribe('presence');
     //mqttClient.publish('presence', 'Hello mqtt');
   })
-  mqttClient.on('message', async (topic:String, message:Buffer) => {
+  mqttClient.on('message', async (topic:string, message:Buffer) => {
     if(mqttCallBack.has(topic)){
       const callback = mqttCallBack.get(topic)!;
-      await callback();
+      await callback(message);
     }else{
       logger.info("received MQTT Topic Message without callback:"+topic.toString())
     }

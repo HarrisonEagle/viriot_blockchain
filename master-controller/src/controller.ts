@@ -44,31 +44,24 @@ import {
 import { Queue } from "bullmq";
 import { addBackgroundJob } from "./jobs";
 import { dnsSubdomainConverter } from "./util";
+import {jobQueue} from "./index";
 
-const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK } = StatusCodes;
+const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, CONFLICT } = StatusCodes;
 
 export const controller = express.Router();
+export const MessageOK = "OK";
+export const MessageAssetExist = "Asset Exist!";
+export const STATUS_PENDING = "pending";
+export const STATUS_RUNNING = "running";
+export const STATUS_STOPPING = "stopping";
+export const STATUS_STOPPED = "stopped";
+export const STATUS_SHUTTING_DOWN = "shutting_down";
+export const STATUS_TERMINATED = "terminated";
+export const STATUS_READY = "ready";
+export const STATUS_ERROR = "error";
 
-controller.get('/api/assets/',
-  async (req: Request, res: Response) => {
-  console.log('Get all assets request received');
-  try {
-    const contract =  res.locals.contract as Contract;
-    const data = await contract.evaluateTransaction('GetAllAssets');
-    let assets = [];
-    if (data.length > 0) {
-      assets = JSON.parse(data.toString());
-    }
 
-    return res.status(OK).json(assets);
-  } catch (err) {
-    logger.error({ err }, 'Error processing get all assets request');
-    return res.status(INTERNAL_SERVER_ERROR).json({
-      status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
+
 
 // MiddlewareをbodyのVerificationの後に入れないとJSに変換した時エラーが出てしまう
 controller.post(
@@ -122,8 +115,9 @@ controller.post(
   }
 );
 
-
-
+export interface ChaincodeMessage {
+ message : string
+}
 controller.post('/addThingVisor',
   body('thingVisorID', 'must be a string').notEmpty(),
   body('params', 'must be a string').notEmpty(),
@@ -135,7 +129,6 @@ controller.post('/addThingVisor',
     console.log('Create Thing Visor request received');
     try {
       const errors = validationResult(req);
-      const wallet = res.app.locals["wallet"] as Wallet;
       if (!errors.isEmpty()) {
         return res.status(BAD_REQUEST).json({
           status: getReasonPhrase(BAD_REQUEST),
@@ -145,14 +138,6 @@ controller.post('/addThingVisor',
           errors: errors.array(),
         });
       }
-      const mqttDataBroker = {
-        ip: mqttDataBrokerHost,
-        port: mqttDataBrokerPort
-      };
-      const mqttControlBroker = {
-        ip: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
-        port: mqttControlBrokerPort
-      };
       const tvId : string = req.body.thingVisorID;
       /*
       const tvIdDns : string = dnsSubdomainConverter(tvId);
@@ -162,13 +147,25 @@ controller.post('/addThingVisor',
           message: "Add fails - ThingVisorID must be a subdomain name, regex('^[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?') - suggested name is: " + tvIdDns
         });
       }*/
+      const contract =  res.locals.contract as Contract;
+      const userID =  res.locals.userID as string;
+      const data = await contract.evaluateTransaction('ThingVisorExists', tvId);
+      const cm : ChaincodeMessage = JSON.parse(data.toString());
+      if(cm.message != MessageOK){
+        return res.status(CONFLICT).json({
+          message: `Add fails - thingVisor ${tvId} already exists`
+        });
+      }
+      const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
+      await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
+
       const kc = req.app.locals["k8sconfig"] as k8s.KubeConfig;
-      const mqttc = res.app.locals["mqtt"] as  mqtt.MqttClient;
-      const submitQueue = req.app.locals.jobq as Queue;
+      const mqttc = res.app.locals["mqtt"] as  mqtt.MqttClient
       await addBackgroundJob(
-        submitQueue,
+        jobQueue!,
         "create_thingvisor",
-        req.body
+        userID,
+        req.body,
       );
 
 
@@ -184,6 +181,26 @@ controller.post('/addThingVisor',
     }
   });
 
+controller.get('/listThingVisors',
+    async (req: Request, res: Response) => {
+      console.log('Get all thing visors request received');
+      try {
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetAllThingVisors');
+        let assets = [];
+        if (data.length > 0) {
+          assets = JSON.parse(data.toString());
+        }
+
+        return res.status(OK).json(assets);
+      } catch (err) {
+        logger.error({ err }, 'Error processing get all thing visors request');
+        return res.status(INTERNAL_SERVER_ERROR).json({
+          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
 
 
 

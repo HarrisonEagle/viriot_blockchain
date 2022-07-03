@@ -6,14 +6,35 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
+)
 
-	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-contract-api-go/contractapi"
+const (
+	CollectionThingVisors string = "collectionThingVisors"
+	CollectionvThings     string = "collectionvThings"
+	CollectionvSilos      string = "collectionvSilos"
+	CollectionFlavours    string = "collectionFlavours"
+
+	MessageOK              string = "OK"
+	MessageAssetExist      string = "Asset Exist!"
+	MessageAssetNotRunning string = "Asset Not Running!"
+
+	STATUS_PENDING       string = "pending"
+	STATUS_RUNNING       string = "running"
+	STATUS_STOPPING      string = "stopping"
+	STATUS_STOPPED       string = "stopped"
+	STATUS_SHUTTING_DOWN string = "shutting_down"
+	STATUS_TERMINATED    string = "terminated"
+	STATUS_READY         string = "ready"
+	STATUS_ERROR         string = "error"
 )
 
 type serverConfig struct {
@@ -33,6 +54,15 @@ type Asset struct {
 	Size           int    `json:"size"`
 	Owner          string `json:"owner"`
 	AppraisedValue int    `json:"appraisedValue"`
+}
+
+type MQTTProfile struct {
+	IP   string `json:"ip"`
+	Port string `json:"port"`
+}
+
+type ChaincodeMessage struct {
+	Message string `json:"message"`
 }
 
 // QueryResult structure used for handling result of query
@@ -58,7 +88,7 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 			return err
 		}
 
-		err = ctx.GetStub().PutState(asset.ID, assetJSON)
+		err = ctx.GetStub().PutPrivateData(CollectionThingVisors, asset.ID, assetJSON)
 		if err != nil {
 			return fmt.Errorf("failed to put to world state: %v", err)
 		}
@@ -67,13 +97,146 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	return nil
 }
 
-// CreateAsset issues a new asset to the world state with given details.
-func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id, color string, size int, owner string, appraisedValue int) error {
-	exists, err := s.AssetExists(ctx, id)
+func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
+	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	if err != nil {
 		return err
 	}
-	if exists {
+	if exists != nil {
+		return fmt.Errorf("the asset %s already exists", id)
+	}
+	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
+}
+
+func (s *SmartContract) UpdateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
+	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
+}
+
+func (s *SmartContract) ThingVisorExists(ctx contractapi.TransactionContextInterface, id string) *ChaincodeMessage {
+	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
+	if err != nil || exists != nil {
+		message := &ChaincodeMessage{Message: MessageAssetExist}
+		return message
+	}
+	message := &ChaincodeMessage{Message: MessageOK}
+	return message
+}
+
+func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInterface, id string) *ChaincodeMessage {
+	tv, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
+	var thingVisor ThingVisor
+	if err != nil {
+		message := &ChaincodeMessage{Message: err.Error()}
+		return message
+	}
+	err = json.Unmarshal(tv, &thingVisor)
+	if err != nil || thingVisor.Status != STATUS_RUNNING {
+		message := &ChaincodeMessage{Message: MessageAssetNotRunning}
+		return message
+	}
+	message := &ChaincodeMessage{Message: MessageOK}
+	return message
+}
+
+func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, id string) error {
+	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
+	if err != nil {
+		return err
+	}
+	if exists != nil {
+		return fmt.Errorf("the asset %s already exists", id)
+	}
+	return ctx.GetStub().DelPrivateData(CollectionThingVisors, id)
+}
+
+type VThingTV struct {
+	Label       string `json:"label"`
+	ID          string `json:"id"`
+	Description string `json:"description"`
+}
+
+type ThingVisor struct {
+	ThingVisorID               string       `json:"thingVisorID"`
+	CreationTime               string       `json:"creationTime"`
+	TvDescription              string       `json:"tvDescription"`
+	Status                     string       `json:"status"`
+	DebugMode                  bool         `json:"debug_mode"`
+	IpAddress                  string       `json:"ipAddress"`
+	DeploymentName             string       `json:"deploymentName"`
+	ServiceName                string       `json:"serviceName"`
+	VThings                    []VThingTV   `json:"vThings"` // 型は一定? (label id description)
+	Params                     string       `json:"params"`
+	MQTTDataBroker             *MQTTProfile `json:"MQTTDataBroker"`
+	MQTTControlBroker          *MQTTProfile `json:"MQTTControlBroker"`
+	AdditionalServicesNames    []string     `json:"additionalServicesNames"`
+	AdditionalDeploymentsNames []string     `json:"additionalDeploymentsNames"`
+}
+
+func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInterface) ([]ThingVisor, error) {
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionThingVisors, "", "")
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+	var results []ThingVisor
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var thingVisor ThingVisor
+		err = json.Unmarshal(queryResponse.Value, &thingVisor)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, thingVisor)
+	}
+	return results, nil
+}
+
+func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string, vThingData string) error {
+	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
+	if err != nil {
+		return err
+	}
+	if thingVisorByte == nil {
+		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " not exist")
+	}
+	var thingVisor ThingVisor
+	if err := json.Unmarshal(thingVisorByte, &thingVisor); err != nil {
+		return err
+	}
+	if thingVisor.Status != STATUS_RUNNING {
+		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " is not ready")
+	}
+	var newVThing VThingTV
+	if err := json.Unmarshal(json.RawMessage(vThingData), &newVThing); err != nil {
+		return err
+	}
+	newVThingID := newVThing.ID
+	for _, v := range thingVisor.VThings {
+		if v.ID == newVThingID {
+			return errors.New("WARNING Add fails - vThingID '" + newVThingID + "' already in use")
+		}
+	}
+	if strings.Split(newVThingID, "/")[0] != ThingVisorID {
+		return errors.New("WARNING Add fails - vThingID '" + newVThingID + "' not valid")
+	}
+	thingVisor.VThings = append(thingVisor.VThings, newVThing)
+	assetJSON, err := json.Marshal(thingVisor)
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().PutPrivateData(CollectionThingVisors, ThingVisorID, assetJSON)
+}
+
+// CreateAsset issues a new asset to the world state with given details.
+func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id, color string, size int, owner string, appraisedValue int) error {
+	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
+	if err != nil {
+		return err
+	}
+	if exists != nil {
 		return fmt.Errorf("the asset %s already exists", id)
 	}
 	asset := Asset{
@@ -89,7 +252,7 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, assetJSON)
 }
 
 // ReadAsset returns the asset stored in the world state with given id.
@@ -184,11 +347,12 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 	return oldOwner, nil
 }
 
+//vThingに関してはcollectionvThing+thingVisorIDにする
+
 // GetAllAssets returns all assets found in world state
 func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]QueryResult, error) {
 	// range query with empty string for startKey and endKey does an open-ended query of all assets in the chaincode namespace.
-	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
-
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionThingVisors, "", "")
 	if err != nil {
 		return nil, err
 	}

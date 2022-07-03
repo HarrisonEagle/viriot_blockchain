@@ -18,6 +18,7 @@ import { logger } from './logger';
 import { handleError } from './errors';
 import * as protos from 'fabric-protos';
 import FabricCAServices from "fabric-ca-client";
+import {wallet} from "./index";
 
 /**
  * Creates an in memory wallet to hold credentials for an Org1 and Org2 user
@@ -102,6 +103,19 @@ export const getContracts = async (
   return { assetContract, qsccContract };
 };
 
+export const getContract = async (
+    userID: string
+): Promise<Contract> =>  {
+  const gatewayOrg = await createGateway(
+      config.connectionProfileOrg,
+      userID,
+      wallet!
+  );
+  const networkOrg = await getNetwork(gatewayOrg);
+  const contract =  await networkOrg.getContract(config.chaincodeName);
+  return contract;
+}
+
 /**
  * Evaluate a transaction and handle any errors
  */
@@ -126,27 +140,6 @@ export const evatuateTransaction = async (
   }
 };
 
-/**
- * Submit a transaction and handle any errors
- */
-export const submitTransaction = async (
-  transaction: Transaction,
-  ...transactionArgs: string[]
-): Promise<Buffer> => {
-  logger.trace({ transaction }, 'Submitting transaction');
-  const txnId = transaction.getTransactionId();
-
-  try {
-    const payload = await transaction.submit(...transactionArgs);
-    logger.trace(
-      { transactionId: txnId, payload: payload.toString() },
-      'Submit transaction response received'
-    );
-    return payload;
-  } catch (err) {
-    throw handleError(txnId, err);
-  }
-};
 
 /**
  * Get the validation code of the specified transaction
@@ -168,26 +161,6 @@ export const getTransactionValidationCode = async (
 
   logger.debug({ transactionId }, 'Validation code: %s', validationCode);
   return validationCode;
-};
-
-/**
- * Get the current block height
- *
- * This example of using a system contract is used for the liveness REST
- * endpoint
- */
-export const getBlockHeight = async (
-  qscc: Contract
-): Promise<number | Long.Long> => {
-  const data = await qscc.evaluateTransaction(
-    'GetChainInfo',
-    config.channelName
-  );
-  const info = protos.common.BlockchainInfo.decode(data);
-  const blockHeight = info.height;
-
-  logger.debug('Current block height: %d', blockHeight);
-  return blockHeight;
 };
 
 export const buildCAClient = (ccp: Record<string, any>, caHostName: string): FabricCAServices => {

@@ -1,4 +1,4 @@
-import { controller } from "./controller";
+import {controller, STATUS_PENDING, STATUS_RUNNING} from "./controller";
 import { body, validationResult } from "express-validator";
 import { Request, Response } from "express";
 import { Wallet } from "fabric-network";
@@ -12,9 +12,9 @@ import {
   mqttControlBrokerPort,
   mqttControlBrokerSVCName,
   mqttDataBrokerHost,
-  mqttDataBrokerPort
+  mqttDataBrokerPort, workingNamespace
 } from "./config";
-import { mqttCallBack, onTvOutControlMessage } from "./mqttcallback";
+import {mqttCallBack, onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
 import {
   convertEnv,
   convertHostAliases,
@@ -24,6 +24,7 @@ import {
   ServiceInstance
 } from "./k8s";
 import { mqttClient, kc } from "./index";
+import {getContract} from "./fabric";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED } = StatusCodes;
 
@@ -37,11 +38,37 @@ export const createThingVisorOnKubernetes = async (
   thingVisorDescription: string,
   yamlFiles: k8s.V1Deployment[] | k8s.V1Service[],
   deployZone: string,
+  userID: string,
 ) => {
+  const mqttDataBroker = {
+    ip: mqttDataBrokerHost,
+    port: mqttDataBrokerPort
+  };
+  const mqttControlBroker = {
+    ip: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
+    port: mqttControlBrokerPort
+  };
+  const creationTime = Date.now().toString();
+  const thingVisorEntry = {
+    thingVisorID: thingVisorID,
+    creationTime: creationTime,
+    tvDescription: thingVisorDescription,
+    //"imageName": tv_img_name,
+    status: STATUS_PENDING,
+    debug_mode: debugMode,
+    vThings: [],
+    params: thingVisorParams,
+    MQTTDataBroker: mqttDataBroker,
+    MQTTControlBroker: mqttControlBroker,
+    yamlFiles: yamlFiles,
+  }
+  const contract =  await getContract(userID);
+  await contract.submitTransaction("UpdateThingVisor", thingVisorID, JSON.stringify(thingVisorEntry));
   logger.debug("Creating Thing Visor On K8s");
   const topic = `${thingVisorPrefix}/${thingVisorID}/${outControlSuffix}`;
   logger.debug("Subsribed Topic:"+topic);
   mqttCallBack.set(topic, onTvOutControlMessage);
+  thingVisorUser.set(thingVisorID, userID);
   mqttClient.subscribe(topic);
   logger.debug("params:"+thingVisorParams)
   const env : ENV= {
@@ -50,13 +77,12 @@ export const createThingVisorOnKubernetes = async (
     MQTTControlBrokerIP: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
     MQTTControlBrokerPort: mqttControlBrokerPort,
     params: thingVisorParams,
-    thingVisorID: thingVisorID,
-    //systemDatabaseIP: mong,
-    //systemDatabasePort: mongo_port
+    thingVisorID: thingVisorID
   }
   let exposedorts= {};
   let deploymentName = "error";
   let serviceName = "";
+  let containerID = "";
   let deploymentsNamesList = [];
   let servicesNamesList = [];
   let servicesHostsAlias : ServiceInstance[] = [];
@@ -121,6 +147,31 @@ export const createThingVisorOnKubernetes = async (
         logger.debug("ThingVisor Created!");
       }
     }
+
+    const ipAddress = `${serviceName}.${workingNamespace}.svc.cluster.local`
+    containerID = deploymentName;
+    ;
+    const newThingVisorEntry = {
+      thingVisorID: thingVisorID,
+      creationTime: creationTime,
+      tvDescription: thingVisorDescription,
+      //"imageName": tv_img_name,
+      status: STATUS_RUNNING,
+      debug_mode: debugMode,
+      ipAddress: ipAddress,
+      deploymentName: deploymentName,
+      serviceName: serviceName,
+      //"port": exposed_ports,
+      //"IP": gateway_IP,
+      vThings: [],
+      params: thingVisorParams,
+      MQTTDataBroker: mqttDataBroker,
+      MQTTControlBroker: mqttControlBroker,
+      yamlFiles: yamlFiles,
+      additionalServicesNames: deploymentsNamesList.filter(name => name != deploymentName),
+      additionalDeploymentsNames: servicesNamesList.filter(name => name != serviceName),
+    }
+    await contract.submitTransaction("UpdateThingVisor", thingVisorID, JSON.stringify(newThingVisorEntry));
   }catch (e) {
     logger.debug("Error to Create ThingVisor!");
   }

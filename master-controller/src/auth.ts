@@ -10,6 +10,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { createClient } from "redis";
+import {wallet} from "./index";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED } = StatusCodes;
 
@@ -50,7 +51,6 @@ controller.post(
     session.startTransaction();
 
     try {
-      const wallet = req.app.locals["wallet"] as Wallet;
       logger.debug('Creating Provider');
       const userRes = res.locals.user;
       if(userRes.role != "Admin"){
@@ -59,7 +59,7 @@ controller.post(
           message: "You're not admin!",
         });
       }
-      const adminIdentity = await wallet.get(config.orgAdminUser);
+      const adminIdentity = await wallet!.get(config.orgAdminUser);
       if (!adminIdentity) {
         logger.debug("Failed to get Admin Identity");
         return res.status(UNAUTHORIZED).json({
@@ -69,7 +69,7 @@ controller.post(
 
 
       // build a user object for authenticating with the CA
-      const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
+      const provider = wallet!.getProviderRegistry().getProvider(adminIdentity.type);
       const adminUser = await provider.getUserContext(adminIdentity, config.orgAdminUser);
 
 
@@ -140,7 +140,6 @@ controller.delete('/unregister',
         errors: errors.array(),
       });
     }
-    const wallet = req.app.locals["wallet"] as Wallet;
     logger.debug('Creating Provider');
 
     const userRes = res.locals.user;
@@ -150,7 +149,7 @@ controller.delete('/unregister',
         message: "You're not admin!",
       });
     }
-    const adminIdentity = await wallet.get(config.orgAdminUser);
+    const adminIdentity = await wallet!.get(config.orgAdminUser);
     if (!adminIdentity) {
       logger.debug("Failed to get Admin Identity");
       return res.status(UNAUTHORIZED).json({
@@ -158,7 +157,7 @@ controller.delete('/unregister',
       });
     }
 
-    const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
+    const provider = wallet!.getProviderRegistry().getProvider(adminIdentity.type);
     const adminUser = await provider.getUserContext(adminIdentity, config.orgAdminUser);
 
     await User.deleteOne({ userID: req.body.userID});
@@ -168,9 +167,9 @@ controller.delete('/unregister',
     // if affiliation is specified by client, the affiliation value must be configured in CA
     logger.debug('Registering User');
     await caClient.newIdentityService().delete(req.body.userID, adminUser);
-    const wExist = await wallet.get(req.body.userID);
+    const wExist = await wallet!.get(req.body.userID);
     if(wExist){
-      await wallet.remove(req.body.userID);
+      await wallet!.remove(req.body.userID);
     }
     await session.commitTransaction();
     await session.endSession();
@@ -192,7 +191,6 @@ controller.get('/listUsers',
   async (req: Request, res: Response) => {
   console.log('Get all assets request received');
   try {
-    const wallet = req.app.locals["wallet"] as Wallet;
     logger.debug('Creating Provider');
 
     const userRes = res.locals.user;
@@ -202,7 +200,7 @@ controller.get('/listUsers',
         message: "You're not admin!",
       });
     }
-    const adminIdentity = await wallet.get(config.orgAdminUser);
+    const adminIdentity = await wallet!.get(config.orgAdminUser);
     if (!adminIdentity) {
       logger.debug("Failed to get Admin Identity");
       return res.status(UNAUTHORIZED).json({
@@ -228,7 +226,6 @@ controller.post('/login',
   console.log('Get all assets request received');
   try {
     const errors = validationResult(req);
-    const wallet = res.app.locals["wallet"] as Wallet;
     if (!errors.isEmpty()) {
       return res.status(BAD_REQUEST).json({
         status: getReasonPhrase(BAD_REQUEST),
@@ -247,7 +244,7 @@ controller.post('/login',
         message: "Login Failed!",
       });
     }
-    const pwcorrect = await bcrypt.compare(req.body.password, user.password);
+    const pwcorrect = await bcrypt.compare(req.body.password, user.password!);
     if(!pwcorrect){
       logger.debug("Password Not Correct!");
       return res.status(UNAUTHORIZED).json({
@@ -267,7 +264,7 @@ controller.post('/login',
       mspId: config.mspIdOrg,
       type: 'X.509',
     };
-    await wallet.put(user.userID, x509Identity);
+    await wallet!.put(user.userID!, x509Identity);
     return res.status(OK).json({
       token: token,
     });
@@ -284,13 +281,11 @@ controller.delete('/logout',
   async (req: Request, res: Response) => {
     console.log('Get all assets request received');
     try {
-      const wallet = req.app.locals["wallet"] as Wallet;
       const blacklist = req.app.locals["blacklist"] as ReturnType<typeof createClient>;
       const token = res.locals.token as string;
       const user = res.locals.user;
       const now = new Date();
       await blacklist.setEx(token, 2592000, now.toUTCString());
-      await wallet.remove(user.userID);
       return res.status(OK).json({
         message: "User Logouted successfully",
       });

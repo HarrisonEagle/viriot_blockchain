@@ -310,6 +310,7 @@ function approve_chaincode() {
     --sequence      1 \
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
+    --collections-config scripts/collections_config.json \
     --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
 
   pop_fn
@@ -329,6 +330,7 @@ function commit_chaincode() {
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \
+    --collections-config scripts/collections_config.json \
     --peerAddresses org1-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem \
     --peerAddresses org2-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
 

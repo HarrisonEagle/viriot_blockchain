@@ -78,8 +78,8 @@ export const submitJobAttempts = env
  */
 export const submitJobConcurrency = env
   .get('SUBMIT_JOB_CONCURRENCY')
-  .default('5')
-  .example('5')
+  .default('1')
+  .example('1')
   .asIntPositive();
 
 /**
@@ -282,6 +282,12 @@ export const jwtSecret= env
   .example(`UYG867ti867f(/&$SWRUco)(YPO/T`)
   .asString();
 
+export const workingNamespace = env
+    .get('WORKING_NAMESPACE')
+    .default(`viriot-network`)
+    .example(`viriot-network`)
+    .asString();
+
 export const mqttDataBrokerHost = env
   .get('MQTT_DATA_BROKER_HOST')
   .default(`vernemq-org1.viriot-network.svc.cluster.local`)
@@ -299,6 +305,7 @@ export const mqttControlBrokerSVCName = env
   .default(`vernemq-org1`)
   .example(`vernemq-org1`)
   .asString();
+
 
 export const mqttControlBrokerHost = env
   .get('MQTT_CONTROL_BROKER_HOST')

@@ -5,9 +5,11 @@ import * as config from "./config";
 import { logger } from "./logger";
 import { v4 as uuidv4 } from "uuid";
 import { createThingVisorOnKubernetes } from "./thingvisor";
+import {onMessageCreateVThing} from "./mqttcallback";
 
 export type JobData = {
   command: string;
+  userID: string;
   reqBody: any;
 };
 
@@ -90,8 +92,11 @@ export const processBackgroundJob = async (
       JSON.stringify(job.data.reqBody.params),
       job.data.reqBody.description,
       job.data.reqBody.yamlFiles,
-      job.data.reqBody.tvZone
+      job.data.reqBody.tvZone,
+        job.data.userID,
     );
+  }else if(job.data.command == "create_thingvisor_vthing"){
+    await onMessageCreateVThing(job.data.reqBody);
   }
   /*
   try {
@@ -159,11 +164,13 @@ export const initJobQueueScheduler = (): QueueScheduler => {
 export const addBackgroundJob = async (
   submitQueue: Queue<JobData, JobResult>,
   command: string,
+  userID: string,
   reqBody: any,
 ): Promise<string> => {
   const jobName = `job${uuidv4()}`;
   const job = await submitQueue.add(jobName, {
     command: command,
+    userID: userID,
     reqBody: reqBody
   });
 

@@ -10,8 +10,9 @@ import * as config from './config';
 import { createClient } from "redis";
 import { User } from "./auth";
 import jwt from "jsonwebtoken";
-import { createGateway, getNetwork } from "./fabric";
+import {createGateway, getContract, getNetwork} from "./fabric";
 import { Wallet } from "fabric-network";
+import {wallet} from "./index";
 
 const { UNAUTHORIZED } = StatusCodes;
 
@@ -26,7 +27,6 @@ export const authenticateAPI = async (
   ) => {
   try {
     if(req.url != "/login"){
-      const wallet = req.app.locals["wallet"] as Wallet;
       const token = req.headers.authorization?.replace("Bearer ", "");
       if (!token) {
         logger.debug("Authoriztion header is not attached");
@@ -43,7 +43,7 @@ export const authenticateAPI = async (
         logger.debug("token expired");
         throw new Error("token expired");
       }
-      const decoded: TokenPayload = jwt.verify(token, secret) as TokenPayload;;
+      const decoded: TokenPayload = jwt.verify(token, secret) as TokenPayload;
       const user = await User.findOne({
         userID: decoded.user_id
       });
@@ -51,15 +51,10 @@ export const authenticateAPI = async (
         logger.debug("User Not found");
         throw new Error("User Not found");
       }
-      const gatewayOrg = await createGateway(
-        config.connectionProfileOrg,
-        user.userID,
-        wallet
-      );
-      const networkOrg = await getNetwork(gatewayOrg);
-      const contract =  await networkOrg.getContract(config.chaincodeName);
+      const contract =  await getContract(user.userID!);
       res.locals.token = token;
       res.locals.user = user;
+      res.locals.userID = user.userID!;
       res.locals.contract = contract;
     }
     next();
