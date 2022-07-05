@@ -32,7 +32,7 @@ import {
 } from "./config";
 import * as k8s from "@kubernetes/client-node";
 import * as mqtt from "mqtt";
-import { mqttCallBack, onTvOutControlMessage } from "./mqttcallback";
+import {mqttCallBack, onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
 import {
   convertEnv,
   convertHostAliases,
@@ -44,13 +44,16 @@ import {
 import { Queue } from "bullmq";
 import { addBackgroundJob } from "./jobs";
 import { dnsSubdomainConverter } from "./util";
-import {jobQueue} from "./index";
+import {jobQueue, mqttClient} from "./index";
+import {vThingPrefix} from "./VThing";
+import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
 
-const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, CONFLICT } = StatusCodes;
+const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, CONFLICT, UNAUTHORIZED } = StatusCodes;
 
 export const controller = express.Router();
 export const MessageOK = "OK";
 export const MessageAssetExist = "Asset Exist!";
+export const MessageAssetNotExist= "Asset Not Exist!"
 export const STATUS_PENDING = "pending";
 export const STATUS_RUNNING = "running";
 export const STATUS_STOPPING = "stopping";
@@ -151,7 +154,7 @@ controller.post('/addThingVisor',
       const userID =  res.locals.userID as string;
       const data = await contract.evaluateTransaction('ThingVisorExists', tvId);
       const cm : ChaincodeMessage = JSON.parse(data.toString());
-      if(cm.message != MessageOK){
+      if(cm.message == MessageAssetExist){
         return res.status(CONFLICT).json({
           message: `Add fails - thingVisor ${tvId} already exists`
         });
@@ -198,6 +201,95 @@ controller.get('/listThingVisors',
         return res.status(INTERNAL_SERVER_ERROR).json({
           status: getReasonPhrase(INTERNAL_SERVER_ERROR),
           timestamp: new Date().toISOString(),
+        });
+      }
+});
+
+controller.post('/inspectThingVisor',
+    async (req: Request, res: Response) => {
+      console.log('Get all thing visors request received');
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const tvId : string = req.body.thingVisorID;
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetThingVisor', tvId);
+        if(data.toString() === ""){
+          return res.status(CONFLICT).json({
+            message: `Delete fails - thingVisor ${tvId} not exists`
+          });
+        }
+        const thingVisor = JSON.parse(data.toString());
+        return res.status(OK).json(thingVisor);
+      } catch (err) {
+        logger.error({ err }, 'Error processing get all thing visors request');
+        return res.status(INTERNAL_SERVER_ERROR).json({
+          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+interface VThingTV{
+  label: string
+  id: string
+  description: string
+}
+
+controller.post('/deleteThingVisor',
+    async (req: Request, res: Response) => {
+      console.log('Create Thing Visor request received');
+      try {
+        const tvId : string = req.body.thingVisorID;
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetThingVisor', tvId);
+        if(data.toString() === ""){
+          return res.status(CONFLICT).json({
+            message: `Delete fails - thingVisor ${tvId} not exists`
+          });
+        }
+        const thingVisor = JSON.parse(data.toString());
+        //const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
+        //await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
+        if(req.body.force) {
+          const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisor', tvId);
+          const vThings: VThingTV[] = JSON.parse(vthingBuffer.toString());
+          if(thingVisor.vThings.length > 0){
+            vThings.map(vThing => {
+              const msg = {command: "deleteVThing", vThingID: vThing.id, vSiloID: "ALL"};
+              //TODO: VThingを削除するJOBをここに入れる
+              mqttClient.publish(`${vThingPrefix}/${vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
+            });
+          }
+          await contract.submitTransaction("DeleteThingVisor", tvId);
+          if(!thingVisor.debug_mode){
+            await deleteThingVisorOnKubernetes(thingVisor);
+          }
+          mqttCallBack.delete(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
+          mqttClient.unsubscribe(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
+          return res.status(OK).json({
+            message: `thingVisor: ${tvId} deleted (force=true)`,
+          });
+        }
+        await contract.submitTransaction('StopThingVisor', tvId);
+        const destroyCmd = {command: "destroyTV", thingVisorID: tvId};
+        mqttClient.publish(`${thingVisorPrefix}/${tvId}/${inControlSuffix}`, JSON.stringify(destroyCmd).replace("\'", "\""));
+
+        if(thingVisor.debug_mode){
+          await contract.submitTransaction("DeleteThingVisor", tvId);
+        }
+        return res.status(OK).json({
+          result:  `thingVisor: ${tvId} deleting (force=true)`,
+        });
+      } catch (err) {
+        logger.error({ err }, 'Error processing add thing visor request');
+        return res.status(INTERNAL_SERVER_ERROR).json({
+          message: "thingVisor delete fails"
         });
       }
     });

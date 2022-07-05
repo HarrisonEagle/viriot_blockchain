@@ -5,7 +5,7 @@ import * as config from "./config";
 import { logger } from "./logger";
 import { v4 as uuidv4 } from "uuid";
 import { createThingVisorOnKubernetes } from "./thingvisor";
-import {onMessageCreateVThing} from "./mqttcallback";
+import {onMessageCreateVThing, onMessageDestroyThingVisorAck} from "./mqttcallback";
 
 export type JobData = {
   command: string;
@@ -97,6 +97,8 @@ export const processBackgroundJob = async (
     );
   }else if(job.data.command == "create_thingvisor_vthing"){
     await onMessageCreateVThing(job.data.reqBody);
+  }else if(job.data.command == "destroy_thingvisor_ack"){
+    await onMessageDestroyThingVisorAck(job.data.reqBody);
   }
   /*
   try {

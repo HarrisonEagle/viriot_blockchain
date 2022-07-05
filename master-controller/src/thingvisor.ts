@@ -19,7 +19,7 @@ import {
   convertEnv,
   convertHostAliases,
   createDeploymentFromYaml,
-  createServiceFromYaml,
+  createServiceFromYaml, deleteAdditionalDeployments, deleteAdditionalServices, deleteDeployment, deleteService,
   ENV,
   ServiceInstance
 } from "./k8s";
@@ -28,8 +28,9 @@ import {getContract} from "./fabric";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, UNAUTHORIZED } = StatusCodes;
 
-const thingVisorPrefix = "TV";
-const outControlSuffix = "c_out"
+export const thingVisorPrefix = "TV";
+export const outControlSuffix = "c_out"
+export const inControlSuffix = "c_in"
 
 export const createThingVisorOnKubernetes = async (
   debugMode: boolean,
@@ -143,7 +144,7 @@ export const createThingVisorOnKubernetes = async (
         }
         logger.debug("Creating Deployment");
         logger.debug(yaml);
-        await createDeploymentFromYaml(kc, "viriot-network", yaml);
+        await createDeploymentFromYaml(kc, workingNamespace, yaml);
         logger.debug("ThingVisor Created!");
       }
     }
@@ -175,4 +176,22 @@ export const createThingVisorOnKubernetes = async (
   }catch (e) {
     logger.debug("Error to Create ThingVisor!");
   }
+}
+
+
+export const deleteThingVisorOnKubernetes = async (tvEntry : any) => {
+  const tvId = tvEntry.thingVisorID;
+  logger.debug(`Deleting Deployment ${tvId}`);
+  const deploymentName = tvEntry.deploymentName;
+  const serviceName = tvEntry.serviceName;
+  if(deploymentName !== ""){
+    logger.debug(`stopping deployment: ${deploymentName}, and service: ${serviceName}`);
+    await deleteDeployment(kc, workingNamespace, deploymentName);
+  }
+  if(serviceName !== ""){
+    await deleteService(kc, workingNamespace, serviceName);
+  }
+  await deleteAdditionalDeployments(tvEntry.additionalDeploymentsNames);
+  await deleteAdditionalServices(tvEntry.additionalServicesNames);
+
 }
