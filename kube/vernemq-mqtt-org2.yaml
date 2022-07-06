@@ -6,7 +6,6 @@ metadata:
   namespace: viriot-network
 spec:
   serviceName: vernemq-org2
-  replicas: 2
   selector:
     matchLabels:
       app: vernemq-org2

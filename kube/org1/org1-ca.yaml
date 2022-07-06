@@ -45,7 +45,7 @@ spec:
       containers:
         - name: main
           image: ${FABRIC_CONTAINER_REGISTRY}/fabric-ca:${FABRIC_CA_VERSION}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           env:
             - name: FABRIC_CA_SERVER_CA_NAME
               value: "org1-ca"

@@ -4,7 +4,6 @@ init:
 	./network up
 	./network channel create
 	./network chaincode deploy viriot-chaincode basic_1.0 chaincode
-	./network chaincode invoke viriot-chaincode '{"Args":["InitLedger"]}'
 down:
 	./network down
 chaincode:

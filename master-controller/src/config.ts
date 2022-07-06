@@ -15,6 +15,9 @@
 
 import * as env from 'env-var';
 
+export const JOB_QUEUE_NAME = 'submit';
+
+
 export const ORG = env
   .get('HLF_ORG_ID')
   .default(`Org1`)
@@ -75,8 +78,8 @@ export const submitJobAttempts = env
  */
 export const submitJobConcurrency = env
   .get('SUBMIT_JOB_CONCURRENCY')
-  .default('5')
-  .example('5')
+  .default('1')
+  .example('1')
   .asIntPositive();
 
 /**
@@ -208,6 +211,12 @@ export const privateKeyOrg = env
 /**
  * The port the Redis server is running on
  */
+export const redisHost = env
+  .get('REDIS_HOST')
+  .default('localhost')
+  .example('localhost')
+  .asString();
+
 export const redisPort = env
   .get('REDIS_PORT')
   .default('6379')
@@ -273,6 +282,12 @@ export const jwtSecret= env
   .example(`UYG867ti867f(/&$SWRUco)(YPO/T`)
   .asString();
 
+export const workingNamespace = env
+    .get('WORKING_NAMESPACE')
+    .default(`viriot-network`)
+    .example(`viriot-network`)
+    .asString();
+
 export const mqttDataBrokerHost = env
   .get('MQTT_DATA_BROKER_HOST')
   .default(`vernemq-org1.viriot-network.svc.cluster.local`)
@@ -290,6 +305,7 @@ export const mqttControlBrokerSVCName = env
   .default(`vernemq-org1`)
   .example(`vernemq-org1`)
   .asString();
+
 
 export const mqttControlBrokerHost = env
   .get('MQTT_CONTROL_BROKER_HOST')

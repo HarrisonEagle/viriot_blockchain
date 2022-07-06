@@ -8,7 +8,6 @@ viriot.tar.gz
 .*.sw*
 # installed platform-specific binaries
 /bin
-/config
 .DS_Store
 .project
 # omit Go vendor directories

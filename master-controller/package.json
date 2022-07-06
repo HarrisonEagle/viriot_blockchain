@@ -13,7 +13,7 @@
     "@types/jsonwebtoken": "^8.5.8",
     "@types/mongoose": "^5.11.97",
     "bcrypt": "^5.0.1",
-    "bullmq": "^1.47.2",
+    "bullmq": "^1.86.2",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "env-var": "^7.0.1",
@@ -27,12 +27,14 @@
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.3.5",
     "mqtt": "^4.3.7",
+    "node-fetch": "^3.2.6",
     "passport": "^0.4.1",
     "passport-headerapikey": "^1.2.2",
     "pino": "^6.11.3",
     "pino-http": "^5.5.0",
     "redis": "^4.1.0",
-    "source-map-support": "^0.5.19"
+    "source-map-support": "^0.5.19",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.12",
@@ -45,6 +47,7 @@
     "@types/pino": "^6.3.8",
     "@types/pino-http": "^5.4.1",
     "@types/supertest": "^2.0.11",
+    "@types/uuid": "^8.3.4",
     "@typescript-eslint/eslint-plugin": "^4.28.0",
     "@typescript-eslint/parser": "^4.28.0",
     "eslint": "^7.29.0",

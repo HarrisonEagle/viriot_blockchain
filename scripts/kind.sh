@@ -78,6 +78,7 @@ function kind_load_docker_images() {
 
   kind load docker-image redis:6.2.5
   kind load docker-image mongo:5.0.9
+  kind load docker-image fed4iot/v-weather-tv:2.3
 
   pop_fn
 }

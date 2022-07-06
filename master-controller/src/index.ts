@@ -19,6 +19,11 @@ import bcrypt from "bcrypt";
 import * as mqtt from 'mqtt'
 import { mqttControlBrokerPort, mqttControlBrokerSVCName } from "./config";
 import { getDeployZoneOnKubernetes } from "./util";
+import { mqttCallBack } from "./mqttcallback";
+import { controller } from "./controller";
+import { Queue, QueueScheduler, Worker } from "bullmq";
+import { addBackgroundJob, initJobQueue, initJobQueueScheduler, initJobQueueWorker } from "./jobs";
+
 
 async function createAdmin(){
   logger.info('Creating Admin');
@@ -47,11 +52,33 @@ async function createAdmin(){
   });
 }
 
+export let jobQueue: Queue | undefined;
+let jobQueueWorker: Worker | undefined;
+let jobQueueScheduler: QueueScheduler | undefined;
+
+export const kc = new k8s.KubeConfig();
+//同一ノードじゃないと効かない可能性?
+//文字によってはTopicとして使えない?
+export const mqttClient = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`,{
+  clientId: 'viriot-mqtt',
+  clean: false,
+  keepalive:5000, //必要なかったら消す
+  reconnectPeriod: 1000 //必要なかったら消す
+})
+
+export let wallet : Wallet | undefined;
 
 
-
-
+// TODO: すべての開発が終わったら CAとPeerのimagePullSecrets:
+//             - name: tunaclocred
+// を消す
+//
+// kubectl create secret generic tunaclocred \                                                                                              2022年06月18日 21時01分30秒
+//            --from-file=.dockerconfigjson=$HOME/.docker/config.json \
+//            --type=kubernetes.io/dockerconfigjson
+//
 // Mongooseが起動しなくなったらDocker Volumeを確認する
+// db.user.find({}, {name:1, _id:0}) _id:0 を指定すると id がmongoDBの結果に出なくなる
 async function main() {
   logger.info('Connecting to MongoDB');
   logger.info(`mongodb://localhost:27017/viriotuser`);
@@ -59,45 +86,54 @@ async function main() {
   logger.info('Checking Redis config');
 
   logger.info('Creating REST server');
-  const wallet = await createWallet();
+  wallet = await createWallet();
   //Gatewayの第2引数にUserIDを渡すべき
   const app = await createServer();
 
   const blacklist = await createClient({
-    url: `redis://localhost:6379`
+    url: `redis://localhost:6380`
   });
   await blacklist.connect();
-  const kc = new k8s.KubeConfig();
   kc.loadFromDefault();
 
-  const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
-  app.locals["k8sapi"] = k8sApi;
+  //const k8sApi = kc.makeApiClient(k8s.AppsV1Api);
+  app.locals["k8sconfig"] = kc;
   /*
   const result = await k8sApi.listPodForAllNamespaces();
   logger.debug(result.response);
   logger.debug(result.body)
   */
   logger.info('Connecting to Fabric network with org1 mspid');
-  app.locals["wallet"] = wallet;
   app.locals["blacklist"] = blacklist;
   await createAdmin();
 
-  const mqttClient  = mqtt.connect(`mqtt://${config.mqttControlBrokerSVCName}.${config.mqttControlBrokerHost}:${config.mqttControlBrokerPort}`)
+  logger.info('Initialising submit job queue');
+  jobQueue = initJobQueue();
+  jobQueueWorker = initJobQueueWorker(app);
+  if (config.submitJobQueueScheduler) {
+    logger.info('Initialising submit job queue scheduler');
+    jobQueueScheduler = initJobQueueScheduler();
+  }
+
   mqttClient.on('connect', () => {
     logger.info("Success to connect MQTT!");
     //mqttClient.subscribe('presence');
     //mqttClient.publish('presence', 'Hello mqtt');
   })
-  mqttClient.on('message', (topic:String, message:Buffer) => {
-    // message is Buffer
-    logger.info("received MQTT Mesaage:"+message.toString())
-  })
+  mqttClient.on('message', async (topic:string, message:Buffer) => {
+    if(mqttCallBack.has(topic)){
+      const callback = mqttCallBack.get(topic)!;
+      await callback(message);
+    }else{
+      logger.info("received MQTT Topic Message without callback:"+topic.toString())
+    }
+    logger.info("received MQTT Mesaage:"+message.toString());
+  });
   mqttClient.on('error', function(err){
     logger.info("MQTT Got ERROR!");
     logger.info(err);
   });
   app.locals["mqtt"] = mqttClient;
-
   logger.info('Starting REST server');
   app.listen(config.port, () => {
     logger.info('REST server started on port: %d', config.port);
