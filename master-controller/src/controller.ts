@@ -63,60 +63,7 @@ export const STATUS_TERMINATED = "terminated";
 export const STATUS_READY = "ready";
 export const STATUS_ERROR = "error";
 
-
-
-
 // MiddlewareをbodyのVerificationの後に入れないとJSに変換した時エラーが出てしまう
-controller.post(
-  '/api/assets/',
-  body().isObject().withMessage('body must contain an asset object'),
-  body('ID', 'must be a string').notEmpty(),
-  body('Color', 'must be a string').notEmpty(),
-  body('Size', 'must be a number').isNumeric(),
-  body('Owner', 'must be a string').notEmpty(),
-  body('AppraisedValue', 'must be a number').isNumeric(),
-  async (req: Request, res: Response) => {
-    logger.debug(req.body, 'Create asset request received');
-
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(BAD_REQUEST).json({
-        status: getReasonPhrase(BAD_REQUEST),
-        reason: 'VALIDATION_ERROR',
-        message: 'Invalid request body',
-        timestamp: new Date().toISOString(),
-        errors: errors.array(),
-      });
-    }
-
-    const assetId = req.body.ID;
-
-    try {
-      const contract =  res.locals.contract as Contract;
-      await contract.submitTransaction(
-        'CreateAsset',
-        assetId,
-        req.body.Color,
-        req.body.Size,
-        req.body.Owner,
-        req.body.AppraisedValue
-      );
-      return res.status(200).json({
-        result: 'OK',
-      });
-
-    } catch (err) {
-      logger.error(
-        { err },
-        'Error processing create asset request for asset ID %s',
-        assetId
-      );
-      return res.status(500).json({
-        error: err,
-      });
-    }
-  }
-);
 
 export interface ChaincodeMessage {
  message : string
@@ -142,6 +89,13 @@ controller.post('/addThingVisor',
         });
       }
       const tvId : string = req.body.thingVisorID;
+      const userRes = res.locals.user;
+      if(userRes.role != "Admin"){
+        logger.debug("User role is Not Admin!");
+        return res.status(UNAUTHORIZED).json({
+          message: "operation not allowed"
+        });
+      }
       /*
       const tvIdDns : string = dnsSubdomainConverter(tvId);
       if(tvId != tvIdDns){
@@ -184,10 +138,73 @@ controller.post('/addThingVisor',
     }
   });
 
+controller.post('/updateThingVisor',
+    async (req: Request, res: Response) => {
+      console.log('Get all thing visors request received');
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const tvDescription : string = req.body.description ? req.body.description : "";
+        const tvParams : string = req.body.params ? req.body.params : "";
+        const tvID : string = req.body.thingVisorID;
+        const userID =  res.locals.userID as string;
+        const updateInfo: string = req.body.updateInfo ? req.body.updateInfo : "";
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetThingVisor', tvID);
+        if(data.toString() === ""){
+          return res.status(CONFLICT).json({
+            message: `Update fails - thingVisor ${tvID} not exists`
+          });
+        }
+        const thingVisorEntry = {thingVisorID: tvID, tvDescription: "", params: ""};
+        thingVisorEntry.tvDescription = tvDescription;
+        thingVisorEntry.params = tvParams;
+        if(thingVisorEntry.tvDescription !== "" || thingVisorEntry.params !== ""){
+          //Update
+          await addBackgroundJob(
+              jobQueue!,
+              "update_thingvisor",
+              userID,
+              thingVisorEntry,
+          );
+        }
+        const updateCMD = {
+          command: "updateTV",
+          thingVisorID: tvID,
+          tvDescription: tvDescription,
+          params: tvParams,
+          updateInfo: updateInfo
+        }
+        mqttClient.publish(`${thingVisorPrefix}/${tvID}/${inControlSuffix}`, JSON.stringify(updateCMD));
+
+        return res.status(OK).json({
+          message: `updating thingVisor ${tvID}`
+        });
+      } catch (err) {
+        logger.error({ err }, 'Error processing get all thing visors request');
+        return res.status(INTERNAL_SERVER_ERROR).json({
+          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
 controller.get('/listThingVisors',
     async (req: Request, res: Response) => {
       console.log('Get all thing visors request received');
       try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
         const contract =  res.locals.contract as Contract;
         const data = await contract.evaluateTransaction('GetAllThingVisors');
         let assets = [];
@@ -245,6 +262,13 @@ controller.post('/deleteThingVisor',
     async (req: Request, res: Response) => {
       console.log('Create Thing Visor request received');
       try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
         const tvId : string = req.body.thingVisorID;
         const contract =  res.locals.contract as Contract;
         const data = await contract.evaluateTransaction('GetThingVisor', tvId);
@@ -284,7 +308,7 @@ controller.post('/deleteThingVisor',
           await contract.submitTransaction("DeleteThingVisor", tvId);
         }
         return res.status(OK).json({
-          result:  `thingVisor: ${tvId} deleting (force=true)`,
+          result:  `thingVisor: ${tvId} deleting (force=false)`,
         });
       } catch (err) {
         logger.error({ err }, 'Error processing add thing visor request');
@@ -293,6 +317,8 @@ controller.post('/deleteThingVisor',
         });
       }
     });
+
+
 
 
 

@@ -4,7 +4,7 @@ import { Transaction } from "fabric-network";
 import * as config from "./config";
 import { logger } from "./logger";
 import { v4 as uuidv4 } from "uuid";
-import { createThingVisorOnKubernetes } from "./thingvisor";
+import {createThingVisorOnKubernetes, updateThingVisor} from "./thingvisor";
 import {onMessageCreateVThing, onMessageDestroyThingVisorAck} from "./mqttcallback";
 
 export type JobData = {
@@ -95,6 +95,8 @@ export const processBackgroundJob = async (
       job.data.reqBody.tvZone,
         job.data.userID,
     );
+  }else if(job.data.command == "update_thingvisor"){
+    await updateThingVisor(job.data.userID, job.data.reqBody.thingVisorID, job.data.reqBody.tvDescription, job.data.reqBody.params);
   }else if(job.data.command == "create_thingvisor_vthing"){
     await onMessageCreateVThing(job.data.reqBody);
   }else if(job.data.command == "destroy_thingvisor_ack"){

@@ -149,9 +149,9 @@ export const createThingVisorOnKubernetes = async (
       }
     }
 
-    const ipAddress = `${serviceName}.${workingNamespace}.svc.cluster.local`
+    const ipAddress = `${serviceName}.${workingNamespace}.svc.cluster.local`;
     containerID = deploymentName;
-    ;
+
     const newThingVisorEntry = {
       thingVisorID: thingVisorID,
       creationTime: creationTime,
@@ -174,7 +174,7 @@ export const createThingVisorOnKubernetes = async (
     }
     await contract.submitTransaction("UpdateThingVisor", thingVisorID, JSON.stringify(newThingVisorEntry));
   }catch (e) {
-    logger.debug("Error to Create ThingVisor!");
+    logger.debug({e},"Error to Create ThingVisor!");
   }
 }
 
@@ -193,5 +193,13 @@ export const deleteThingVisorOnKubernetes = async (tvEntry : any) => {
   }
   await deleteAdditionalDeployments(tvEntry.additionalDeploymentsNames);
   await deleteAdditionalServices(tvEntry.additionalServicesNames);
+}
 
+export const updateThingVisor = async (userID: string, thingVisorID: string, tvDescription: string, params: string) => {
+  try{
+    const contract =  await getContract(userID);
+    await contract.submitTransaction("UpdateThingVisorPartial", thingVisorID, tvDescription, params);
+  }catch (e){
+    logger.debug(`Update Thing Visor ${thingVisorID} Failed!`);
+  }
 }
