@@ -121,11 +121,11 @@ export const createThingVisorOnKubernetes = async (
         const yaml = y as k8s.V1Service;
         logger.debug("Service Creation");
         const serviceName = yaml.metadata!.name + "-" + thingVisorID.toLowerCase().replace("_", "-");
-        const serviceInstance : ServiceInstance = {prec: yaml.metadata!.name!, cluser_ip: ""};
+        const serviceInstance : ServiceInstance = {prec: yaml.metadata!.name!, cluster_ip: ""};
         yaml.metadata!.name = serviceName;
         yaml.spec!.selector!.thingVisorID = labelApp;
-        const apiResponseService = await createServiceFromYaml(kc, "viriot-network", yaml);
-        serviceInstance.cluser_ip = apiResponseService.body.spec?.clusterIP!;
+        const apiResponseService = await createServiceFromYaml(kc,workingNamespace, yaml);
+        serviceInstance.cluster_ip = apiResponseService.body.spec?.clusterIP!;
         servicesHostsAlias.push(serviceInstance);
         servicesNamesList.push(serviceName);
       }else{

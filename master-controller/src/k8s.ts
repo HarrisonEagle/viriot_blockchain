@@ -16,7 +16,7 @@ export type ENV =  {
 
 export type ServiceInstance = {
   prec: string,
-  cluser_ip: string
+  cluster_ip: string
 }
 
 
@@ -35,7 +35,7 @@ export const convertHostAliases = (hosts: ServiceInstance[], precHosts : V1HostA
   let newHosts = precHosts;
   for(const host of hosts){
     newHosts.push({
-      ip: JSON.stringify(host),
+      ip: host.cluster_ip,
       hostnames: [host.prec]
     });
   }
