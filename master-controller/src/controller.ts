@@ -222,6 +222,26 @@ controller.get('/listThingVisors',
       }
 });
 
+controller.get('/listVThings',
+    async (req: Request, res: Response) => {
+      console.log('Get all thing visors request received');
+      try {
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetAllVThings');
+        let assets = [];
+        if (data.length > 0) {
+          assets = JSON.parse(data.toString());
+        }
+        return res.status(OK).json(assets);
+      } catch (err) {
+        logger.error({ err }, 'Error processing get all vthings request');
+        return res.status(INTERNAL_SERVER_ERROR).json({
+          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
 controller.post('/inspectThingVisor',
     async (req: Request, res: Response) => {
       console.log('Get all thing visors request received');
@@ -238,13 +258,13 @@ controller.post('/inspectThingVisor',
         const data = await contract.evaluateTransaction('GetThingVisor', tvId);
         if(data.toString() === ""){
           return res.status(CONFLICT).json({
-            message: `Delete fails - thingVisor ${tvId} not exists`
+            message: `Inspect fails - thingVisor ${tvId} not exists`
           });
         }
         const thingVisor = JSON.parse(data.toString());
         return res.status(OK).json(thingVisor);
       } catch (err) {
-        logger.error({ err }, 'Error processing get all thing visors request');
+        logger.error({ err }, 'Error processing inspect thing visors request');
         return res.status(INTERNAL_SERVER_ERROR).json({
           status: getReasonPhrase(INTERNAL_SERVER_ERROR),
           timestamp: new Date().toISOString(),

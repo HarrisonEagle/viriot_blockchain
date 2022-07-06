@@ -221,6 +221,30 @@ func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInte
 	return results, nil
 }
 
+func (s *SmartContract) GetAllVThings(ctx contractapi.TransactionContextInterface) ([]VThingTV, error) {
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionThingVisors, "", "")
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+	var results []VThingTV
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var thingVisor ThingVisor
+		err = json.Unmarshal(queryResponse.Value, &thingVisor)
+		if err != nil {
+			return nil, err
+		}
+		for _, vThing := range thingVisor.VThings {
+			results = append(results, vThing)
+		}
+	}
+	return results, nil
+}
+
 func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) ([]VThingTV, error) {
 	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
 	if err != nil {
