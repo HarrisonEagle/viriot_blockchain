@@ -122,6 +122,7 @@ async function main() {
   })
   mqttClient.on('message', async (topic:string, message:Buffer) => {
     if(mqttCallBack.has(topic)){
+      logger.debug("Executing Callback of"+topic);
       const callback = mqttCallBack.get(topic)!;
       await callback(message);
     }else{

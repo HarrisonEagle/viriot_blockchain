@@ -9,6 +9,15 @@
        "memberOnlyWrite": true
     },
     {
+      "name": "collectionvThingTVs",
+      "policy": "OR('Org1MSP.member', 'Org2MSP.member')",
+      "requiredPeerCount": 0,
+      "maxPeerCount": 16,
+      "blockToLive":1000000,
+      "memberOnlyRead": true,
+      "memberOnlyWrite": true
+   },
+    {
         "name": "collectionvThings",
         "policy": "OR('Org1MSP.member', 'Org2MSP.member')",
         "requiredPeerCount": 0,
