@@ -32,7 +32,8 @@ import {
 } from "./config";
 import * as k8s from "@kubernetes/client-node";
 import * as mqtt from "mqtt";
-import {mqttCallBack, onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
+import {mqttCallBack,
+  onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
 import {
   convertEnv,
   convertHostAliases,
