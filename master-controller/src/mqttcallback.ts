@@ -1,8 +1,7 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
-import {addBackgroundJob} from "./jobs";
 import {jobQueue, mqttClient} from "./index";
-import {ChaincodeMessage, MessageOK, VThingLogs} from "./controller";
+import {ChaincodeMessage, MessageOK } from "./controller";
 import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
@@ -45,25 +44,11 @@ export const onMessageRequestInit = async(thingVisorID: string) => {
 
 export const onMessageCreateVThing = async(res: any) => {
   try{
-    const start = new Date();
-    console.log("VThing" + res.vThing.id + " Creating. "+ start.toISOString());
-    VThingLogs.push({
-      VThingID: res.vThing.id as string,
-      Event: "Creating VThing",
-      time: start.toISOString()
-    });
     const tvID = res.thingVisorID;
     const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
     let cmdata = await contract.evaluateTransaction('ThingVisorRunning', tvID);
     let cm : ChaincodeMessage = JSON.parse(cmdata.toString());
     if(cm.message != MessageOK){
-      console.log("Waiting:" + res.vThing.id);
-      const waiting = new Date();
-      VThingLogs.push({
-        VThingID: res.vThing.id as string,
-        Event: "Waiting status for Running",
-        time: waiting.toISOString()
-      });
       while(cm.message != MessageOK){
         await new Promise(f => setTimeout(f, 1000));
         cmdata = await contract.evaluateTransaction('ThingVisorRunning', tvID);
@@ -71,13 +56,6 @@ export const onMessageCreateVThing = async(res: any) => {
       }
     }
     await contract.submitTransaction("AddVThingToThingVisor", res.thingVisorID, JSON.stringify(res.vThing));
-    const end = new Date();
-    console.log("VThing" + res.vThing.id + " Creation complete. "+ end.toISOString());
-    VThingLogs.push({
-      VThingID: res.vThing.id as string,
-      Event: "VThing Creation Complete",
-      time: end.toISOString()
-    });
   }catch (e){
     logger.error(
         { e },

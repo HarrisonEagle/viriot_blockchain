@@ -78,8 +78,8 @@ export const submitJobAttempts = env
  */
 export const submitJobConcurrency = env
   .get('SUBMIT_JOB_CONCURRENCY')
-  .default('1')
-  .example('1')
+  .default('5')
+  .example('5')
   .asIntPositive();
 
 /**
