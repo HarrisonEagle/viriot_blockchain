@@ -97,52 +97,9 @@ export const processBackgroundJob = async (
     );
   }else if(job.data.command == "update_thingvisor"){
     await updateThingVisor(job.data.userID, job.data.reqBody.thingVisorID, job.data.reqBody.tvDescription, job.data.reqBody.params);
-  }else if(job.data.command == "create_thingvisor_vthing"){
-    await onMessageCreateVThing(job.data.reqBody);
   }else if(job.data.command == "destroy_thingvisor_ack"){
     await onMessageDestroyThingVisorAck(job.data.reqBody);
   }
-  /*
-  try {
-    const payload = await submitTransaction(transaction, ...args);
-
-    return {
-      transactionError: undefined,
-      transactionPayload: payload,
-    };
-  } catch (err) {
-    const retryAction = getRetryAction(err);
-
-    if (retryAction === RetryAction.None) {
-      logger.error(
-        { jobId: job.id, jobName: job.name, err },
-        'Fatal transaction error occurred'
-      );
-
-      // Not retriable so return a job result with the error details
-      return {
-        transactionError: `${err}`,
-        transactionPayload: undefined,
-      };
-    }
-
-    logger.warn(
-      { jobId: job.id, jobName: job.name, err },
-      'Retryable transaction error occurred'
-    );
-
-    if (retryAction === RetryAction.WithNewTransactionId) {
-      logger.debug(
-        { jobId: job.id, jobName: job.name },
-        'Clearing saved transaction state'
-      );
-      await updateJobData(job, undefined);
-    }
-
-    // Rethrow the error to keep retrying
-    throw err;
-  }
-   */
 };
 
 /**

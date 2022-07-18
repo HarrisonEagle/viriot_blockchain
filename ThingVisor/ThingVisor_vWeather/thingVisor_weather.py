@@ -144,28 +144,7 @@ class mqttControlThread(Thread):
             traceback.print_exc()
         return
 
-    def on_message_in_control_TV(self, mosq, obj, msg):
-        payload = msg.payload.decode("utf-8", "ignore")
-        print(msg.topic + " " + str(payload))
-        jres = json.loads(payload.replace("\'", "\""))
-        try:
-            command_type = jres["command"]
-            if command_type == "destroyTV":
-                self.on_message_destroy_thing_visor(jres)
-        except Exception as ex:
-            traceback.print_exc()
-        return 'invalid command'
-
-    def run(self):
-        print("Thread mqtt control started")
-        global mqtt_control_client
-        mqtt_control_client.connect(MQTT_control_broker_IP, MQTT_control_broker_port, 30)
-        print("mqtttopic:")
-        print(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix)
-        # Test Publish
-        mqtt_control_client.publish(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix, "Test Message")
-        print(v_things)
-        
+    def on_message_create_vthings(self):
         # Publish on the thingVisor out_control topic the createVThing command and other parameters for each vThing
         for v_thing in v_things:
             v_thing_topic = v_thing["topic"]
@@ -179,11 +158,35 @@ class mqttControlThread(Thread):
             # Add message callbacks that will only trigger on a specific subscription match
             mqtt_control_client.message_callback_add(v_thing_topic + "/" + in_control_suffix,
                                                      self.on_message_in_control_vThing)
-            mqtt_control_client.message_callback_add(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix,
-                                                     self.on_message_in_control_TV)
             mqtt_control_client.subscribe(v_thing_topic + '/' + in_control_suffix)
-            mqtt_control_client.subscribe(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix)
-            time.sleep(0.1)
+
+    def on_message_in_control_TV(self, mosq, obj, msg):
+        payload = msg.payload.decode("utf-8", "ignore")
+        print(msg.topic + " " + str(payload))
+        jres = json.loads(payload.replace("\'", "\""))
+        try:
+            command_type = jres["command"]
+            if command_type == "destroyTV":
+                self.on_message_destroy_thing_visor(jres)
+            elif command_type == "createVThings":
+                self.on_message_create_vthings()
+        except Exception as ex:
+            traceback.print_exc()
+        return 'invalid command'
+
+
+    def run(self):
+        print("Thread mqtt control started")
+        global mqtt_control_client
+        mqtt_control_client.connect(MQTT_control_broker_IP, MQTT_control_broker_port, 30)
+        print("mqtttopic:")
+        print(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix)
+        init_message = {"command": "requestInit", "thingVisorID": thing_visor_ID}
+        mqtt_control_client.subscribe(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix)
+        mqtt_control_client.message_callback_add(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix,
+                                                 self.on_message_in_control_TV)
+        mqtt_control_client.publish(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix,
+                                    json.dumps(init_message))
         mqtt_control_client.loop_forever()
         print("Thread '" + self.name + "' terminated")
 
