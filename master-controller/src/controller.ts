@@ -243,6 +243,19 @@ controller.get('/listVThings',
       }
     });
 
+export interface VThingLog {
+  VThingID: string
+  Event: string
+  time: string
+}
+
+export const VThingLogs = Array<VThingLog>();
+
+controller.get('/listVThingLogs',
+    async (req: Request, res: Response) => {
+      return res.status(OK).json(VThingLogs);
+    });
+
 controller.post('/inspectThingVisor',
     async (req: Request, res: Response) => {
       console.log('Get all thing visors request received');
