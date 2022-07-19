@@ -49,7 +49,7 @@ export const createThingVisorOnKubernetes = async (
     ip: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
     port: mqttControlBrokerPort
   };
-  const creationTime = Date.now().toString();
+  const creationTime = new Date().toISOString();
   const thingVisorEntry = {
     thingVisorID: thingVisorID,
     creationTime: creationTime,
@@ -62,6 +62,8 @@ export const createThingVisorOnKubernetes = async (
     MQTTDataBroker: mqttDataBroker,
     MQTTControlBroker: mqttControlBroker,
     yamlFiles: yamlFiles,
+    additionalServicesNames: [],
+    additionalDeploymentsNames: []
   }
   const contract =  await getContract(userID);
   await contract.submitTransaction("UpdateThingVisor", thingVisorID, JSON.stringify(thingVisorEntry));
