@@ -109,34 +109,37 @@ func (s *SmartContract) ThingVisorExists(ctx contractapi.TransactionContextInter
 	return message
 }
 
-func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterface, id string) *ThingVisor {
+func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterface, id string) (*ThingVisor, error) {
 	byteData, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	var thingVisor ThingVisor
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	err = json.Unmarshal(byteData, &thingVisor)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{id})
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, id})
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	defer resultsIterator.Close()
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		var vThingTV VThingTV
 		err = json.Unmarshal(queryResponse.Value, &vThingTV)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		thingVisor.VThings = append(thingVisor.VThings, vThingTV)
 	}
-	return &thingVisor
+	return &thingVisor, nil
 }
 
 func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInterface, id string) *ChaincodeMessage {
@@ -208,7 +211,6 @@ type ThingVisor struct {
 func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInterface) ([]ThingVisor, error) {
 	vThingIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix})
 	tvIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionThingVisors, "", "")
-	defer vThingIterator.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +227,10 @@ func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInte
 		}
 		vThings = append(vThings, vThingTV)
 	}
-	defer tvIterator.Close()
+	err = vThingIterator.Close()
+	if err != nil {
+		return nil, err
+	}
 	var results []ThingVisor
 	for tvIterator.HasNext() {
 		queryResponse, err := tvIterator.Next()
@@ -245,6 +250,10 @@ func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInte
 		}
 		results = append(results, thingVisor)
 	}
+	err = tvIterator.Close()
+	if err != nil {
+		return nil, err
+	}
 	return results, nil
 }
 
@@ -253,7 +262,6 @@ func (s *SmartContract) GetAllVThings(ctx contractapi.TransactionContextInterfac
 	if err != nil {
 		return nil, err
 	}
-	defer resultsIterator.Close()
 	var results []VThingTV
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
@@ -266,6 +274,10 @@ func (s *SmartContract) GetAllVThings(ctx contractapi.TransactionContextInterfac
 			return nil, err
 		}
 		results = append(results, vThingTV)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
 	}
 	return results, nil
 }
@@ -275,7 +287,6 @@ func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionCont
 	if err != nil {
 		return nil, err
 	}
-	defer resultsIterator.Close()
 	var results []VThingTV
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
@@ -288,6 +299,10 @@ func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionCont
 			return nil, err
 		}
 		results = append(results, vThingTV)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
 	}
 	return results, nil
 }
@@ -351,7 +366,6 @@ func (s *SmartContract) DeleteAllVThingsFromThingVisor(ctx contractapi.Transacti
 		}
 	}
 	resultsIterator.Close()
-
 	return nil
 }
 

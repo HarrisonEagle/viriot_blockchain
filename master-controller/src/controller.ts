@@ -114,7 +114,7 @@ controller.post('/addThingVisor',
           message: `Add fails - thingVisor ${tvId} already exists`
         });
       }
-      const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
+      const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING, additionalServicesNames: [], vThings: [], additionalDeploymentsNames: []};
       await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
 
       const kc = req.app.locals["k8sconfig"] as k8s.KubeConfig;
@@ -217,8 +217,7 @@ controller.get('/listThingVisors',
       } catch (err) {
         logger.error({ err }, 'Error processing get all thing visors request');
         return res.status(INTERNAL_SERVER_ERROR).json({
-          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-          timestamp: new Date().toISOString(),
+          error: err
         });
       }
 });
@@ -267,8 +266,7 @@ controller.post('/inspectThingVisor',
       } catch (err) {
         logger.error({ err }, 'Error processing inspect thing visors request');
         return res.status(INTERNAL_SERVER_ERROR).json({
-          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-          timestamp: new Date().toISOString(),
+          error: err
         });
       }
     });
