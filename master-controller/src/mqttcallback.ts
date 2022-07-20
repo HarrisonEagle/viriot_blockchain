@@ -1,8 +1,9 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
 import {jobQueue, mqttClient} from "./index";
-import {ChaincodeMessage, MessageOK } from "./controller";
+import {ChaincodeMessage, MessageOK, VThingTVWithKey} from "./controller";
 import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
+import {vThingPrefix} from "./VThing";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
 export const thingVisorUser = new Map<string, string>();
@@ -69,9 +70,15 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
     const tvID = res.thingVisorID;
     const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
     const data = await contract.evaluateTransaction('GetThingVisor', tvID);
+    const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvID);
     const thingVisor = JSON.parse(data.toString());
+    const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
+    let deleteVThingTVJobs = Array<Promise<Buffer>>();
+    vThings.map(element => {
+      deleteVThingTVJobs.push(contract.submitTransaction("DeleteVThingTVFromThingVisor", element.key))
+    });
+    await Promise.all(deleteVThingTVJobs);
     await contract.submitTransaction("DeleteThingVisor", tvID);
-    await contract.submitTransaction("DeleteAllVThingsFromThingVisor", tvID);
     if(!thingVisor.debug_mode){
       await deleteThingVisorOnKubernetes(thingVisor);
     }

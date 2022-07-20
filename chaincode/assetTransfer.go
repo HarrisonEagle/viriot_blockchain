@@ -185,6 +185,11 @@ func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterfa
 	return ctx.GetStub().PutPrivateData(CollectionThingVisors, ThingVisorID, assetJSON)
 }
 
+type VThingTVWithKey struct {
+	Key    string   `json:"key"`
+	VThing VThingTV `json:"vThing"`
+}
+
 type VThingTV struct {
 	Label       string `json:"label"`
 	ID          string `json:"id"`
@@ -307,6 +312,31 @@ func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionCont
 	return results, nil
 }
 
+func (s *SmartContract) GetAllVThingOfThingVisorWithKeys(ctx contractapi.TransactionContextInterface, ThingVisorID string) ([]VThingTVWithKey, error) {
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, ThingVisorID})
+	if err != nil {
+		return nil, err
+	}
+	var results []VThingTVWithKey
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var vThingTV VThingTV
+		err = json.Unmarshal(queryResponse.Value, &vThingTV)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, VThingTVWithKey{Key: queryResponse.Key, VThing: vThingTV})
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string, vThingData string) error {
 	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
 	if err != nil {
@@ -339,34 +369,8 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte)
 }
 
-func (s *SmartContract) DeleteAllVThingsFromThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
-	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
-	if err != nil {
-		return err
-	}
-	if thingVisorByte == nil {
-		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " not exist")
-	}
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, ThingVisorID})
-	if err != nil {
-		return err
-	}
-	var keys []string
-	for resultsIterator.HasNext() {
-		queryResponse, err := resultsIterator.Next()
-		if err != nil {
-			return err
-		}
-		keys = append(keys, queryResponse.Key)
-	}
-	for _, key := range keys {
-		err = ctx.GetStub().DelPrivateData(CollectionvThingTVs, key)
-		if err != nil {
-			return err
-		}
-	}
-	resultsIterator.Close()
-	return nil
+func (s *SmartContract) DeleteVThingTVFromThingVisor(ctx contractapi.TransactionContextInterface, key string) error {
+	return ctx.GetStub().DelPrivateData(CollectionvThingTVs, key)
 }
 
 func main() {
