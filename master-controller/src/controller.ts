@@ -271,10 +271,15 @@ controller.post('/inspectThingVisor',
       }
     });
 
-interface VThingTV{
+export interface VThingTV{
   label: string
   id: string
   description: string
+}
+
+export interface VThingTVWithKey{
+  key: string
+  vThing: VThingTV
 }
 
 controller.post('/deleteThingVisor',
@@ -299,16 +304,18 @@ controller.post('/deleteThingVisor',
         const thingVisor = JSON.parse(data.toString());
         //const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
         //await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
+        let deleteVThingTVJobs = Array<Promise<Buffer>>();
         if(req.body.force) {
-          const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisor', tvId);
-          const vThings: VThingTV[] = JSON.parse(vthingBuffer.toString());
+          const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvId);
+          const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
           if(thingVisor.vThings.length > 0){
-            vThings.map(vThing => {
-              const msg = {command: "deleteVThing", vThingID: vThing.id, vSiloID: "ALL"};
-              //TODO: VThingを削除するJOBをここに入れる
-              mqttClient.publish(`${vThingPrefix}/${vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
+            vThings.map(element => {
+              const msg = {command: "deleteVThing", vThingID: element.vThing.id, vSiloID: "ALL"};
+              mqttClient.publish(`${vThingPrefix}/${element.vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
+              deleteVThingTVJobs.push(contract.submitTransaction("DeleteVThingTVFromThingVisor", element.key))
             });
           }
+          await Promise.all(deleteVThingTVJobs);
           await contract.submitTransaction("DeleteThingVisor", tvId);
           if(!thingVisor.debug_mode){
             await deleteThingVisorOnKubernetes(thingVisor);
