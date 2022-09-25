@@ -73,12 +73,8 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
     const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvID);
     const thingVisor = JSON.parse(data.toString());
     const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
-    let deleteVThingTVJobs = Array<Promise<Buffer>>();
-    vThings.map(element => {
-      deleteVThingTVJobs.push(contract.submitTransaction("DeleteVThingTVFromThingVisor", element.key))
-    });
-    await Promise.all(deleteVThingTVJobs);
-    await contract.submitTransaction("DeleteThingVisor", tvID);
+    const vThingKeys = vThings.map(element => element.key);
+    await contract.submitTransaction("DeleteThingVisor", tvID, ...vThingKeys);
     if(!thingVisor.debug_mode){
       await deleteThingVisorOnKubernetes(thingVisor);
     }
