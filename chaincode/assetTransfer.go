@@ -158,8 +158,13 @@ func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInte
 	return message
 }
 
-func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, id string) error {
-	return ctx.GetStub().DelPrivateData(CollectionThingVisors, id)
+func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
+	for _, key := range ctx.GetStub().GetStringArgs()[1:] {
+		if err := ctx.GetStub().DelPrivateData(CollectionvThingTVs, key); err != nil {
+			return err
+		}
+	}
+	return ctx.GetStub().DelPrivateData(CollectionThingVisors, ThingVisorID)
 }
 
 func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
@@ -367,10 +372,6 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 		return err
 	}
 	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte)
-}
-
-func (s *SmartContract) DeleteVThingTVFromThingVisor(ctx contractapi.TransactionContextInterface, key string) error {
-	return ctx.GetStub().DelPrivateData(CollectionvThingTVs, key)
 }
 
 func main() {

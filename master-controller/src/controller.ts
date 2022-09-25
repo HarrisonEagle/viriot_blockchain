@@ -304,19 +304,15 @@ controller.post('/deleteThingVisor',
         const thingVisor = JSON.parse(data.toString());
         //const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
         //await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
-        let deleteVThingTVJobs = Array<Promise<Buffer>>();
         if(req.body.force) {
           const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvId);
           const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
-          if(thingVisor.vThings.length > 0){
-            vThings.map(element => {
-              const msg = {command: "deleteVThing", vThingID: element.vThing.id, vSiloID: "ALL"};
-              mqttClient.publish(`${vThingPrefix}/${element.vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
-              deleteVThingTVJobs.push(contract.submitTransaction("DeleteVThingTVFromThingVisor", element.key))
-            });
-          }
-          await Promise.all(deleteVThingTVJobs);
-          await contract.submitTransaction("DeleteThingVisor", tvId);
+          const vThingKeys = (thingVisor.vThings.length > 0) ? vThings.map(element => {
+            const msg = {command: "deleteVThing", vThingID: element.vThing.id, vSiloID: "ALL"};
+            mqttClient.publish(`${vThingPrefix}/${element.vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
+            return element.key
+          }) : [];
+          await contract.submitTransaction("DeleteThingVisor", tvId, ...vThingKeys);
           if(!thingVisor.debug_mode){
             await deleteThingVisorOnKubernetes(thingVisor);
           }
