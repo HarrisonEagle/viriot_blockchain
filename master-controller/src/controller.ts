@@ -243,9 +243,20 @@ controller.get('/listVThings',
     });
 
 controller.post('/inspectThingVisor',
+    body('thingVisorID', 'must be a string').notEmpty(),
     async (req: Request, res: Response) => {
       console.log('Get all thing visors request received');
       try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(BAD_REQUEST).json({
+            status: getReasonPhrase(BAD_REQUEST),
+            reason: 'VALIDATION_ERROR',
+            message: 'Invalid request body',
+            timestamp: new Date().toISOString(),
+            errors: errors.array(),
+          });
+        }
         const userRes = res.locals.user;
         if(userRes.role != "Admin"){
           logger.debug("User role is Not Admin!");
@@ -281,6 +292,19 @@ export interface VThingTVWithKey{
   key: string
   vThing: VThingTV
 }
+
+export interface FabricError {
+  stack: string
+  message: string
+  responses: {
+    version:number
+    response: {
+      status: number
+      message: string
+    }
+  }[]
+}
+
 
 controller.post('/deleteThingVisor',
     async (req: Request, res: Response) => {
@@ -340,6 +364,154 @@ controller.post('/deleteThingVisor',
       }
     });
 
+
+controller.post('/addFlavour',
+    body('flavourID', 'must be a string').notEmpty(),
+    body('flavourParams', 'must be a string').notEmpty(),
+    body('flavourDescription', 'must be a string').notEmpty(),
+    body('yamlFiles', 'must be a string').notEmpty(),
+    async (req: Request, res: Response) => {
+      console.log('Create Thing Visor request received');
+      try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(BAD_REQUEST).json({
+            status: getReasonPhrase(BAD_REQUEST),
+            reason: 'VALIDATION_ERROR',
+            message: 'Invalid request body',
+            timestamp: new Date().toISOString(),
+            errors: errors.array(),
+          });
+        }
+        const flavourID: string  = req.body.flavourID;
+        const userID =  res.locals.userID as string;
+        const contract =  res.locals.contract as Contract;
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        await contract.submitTransaction('AddFlavour', flavourID);
+        await addBackgroundJob(
+            jobQueue!,
+            "create_flavour",
+            userID,
+            req.body,
+        );
+        return res.status(OK).json({
+          result: `Creating flavour ${flavourID}`,
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({ err }, 'Error processing add flavour request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.get('/listFlavours',
+    async (req: Request, res: Response) => {
+      console.log('Get all flavours request received');
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetAllFlavours');
+        const assets =  (data.length > 0)  ? JSON.parse(data.toString()) : [];
+        return res.status(OK).json(assets);
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing get all flavours request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/inspectFlavour',
+    body('flavourID', 'must be a string').notEmpty(),
+    async (req: Request, res: Response) => {
+      console.log('Get flavours request received');
+      try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(BAD_REQUEST).json({
+            status: getReasonPhrase(BAD_REQUEST),
+            reason: 'VALIDATION_ERROR',
+            message: 'Invalid request body',
+            timestamp: new Date().toISOString(),
+            errors: errors.array(),
+          });
+        }
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const flavourID: string  = req.body.flavourID;
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetFlavour', flavourID);
+        const thingVisor = JSON.parse(data.toString());
+        return res.status(OK).json(thingVisor);
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({ err }, 'Error processing get all thing visors request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/deleteFlavour',
+    body('flavourID', 'must be a string').notEmpty(),
+    async (req: Request, res: Response) => {
+      console.log('Get flavours request received');
+      try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(BAD_REQUEST).json({
+            status: getReasonPhrase(BAD_REQUEST),
+            reason: 'VALIDATION_ERROR',
+            message: 'Invalid request body',
+            timestamp: new Date().toISOString(),
+            errors: errors.array(),
+          });
+        }
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const flavourID: string  = req.body.flavourID;
+        const contract =  res.locals.contract as Contract;
+        await contract.submitTransaction('DeleteFlavour', flavourID);
+        return res.status(OK).json({
+          result: `Flavour ${flavourID} deleted.`
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({ err }, 'Error processing get all thing visors request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
 
 
 

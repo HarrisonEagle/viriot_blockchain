@@ -374,6 +374,102 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte)
 }
 
+type Flavour struct {
+	FlavourID          string   `json:"flavourID"`
+	FlavourParams      string   `json:"flavourParams"`
+	ImageName          []string `json:"imageName"`
+	FlavourDescription string   `json:"flavourDescription"`
+	CreationTime       string   `json:"creationTime"`
+	Status             string   `json:"status"`
+	YamlFiles          []string `json:"yamlFiles"`
+}
+
+func (s *SmartContract) AddFlavour(ctx contractapi.TransactionContextInterface, flavourID string) error {
+	flavourByte, err := ctx.GetStub().GetPrivateData(CollectionFlavours, flavourID)
+	if err != nil {
+		return err
+	}
+	if flavourByte != nil {
+		return errors.New("WARNING Add fails - Flavour " + flavourID + " already exists")
+	}
+	data, err := json.Marshal(Flavour{
+		FlavourID:          flavourID,
+		FlavourParams:      "",
+		ImageName:          []string{},
+		FlavourDescription: "",
+		CreationTime:       "",
+		Status:             STATUS_PENDING,
+		YamlFiles:          []string{},
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, data)
+}
+
+func (s *SmartContract) UpdateFlavour(ctx contractapi.TransactionContextInterface, flavourID string, flavourData string) error {
+	flavourByte, err := ctx.GetStub().GetPrivateData(CollectionFlavours, flavourID)
+	if err != nil {
+		return err
+	}
+	if flavourByte == nil {
+		return errors.New("Update Flavour fails - Flavour " + flavourID + " not exist")
+	}
+	return ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, json.RawMessage(flavourData))
+}
+
+func (s *SmartContract) DeleteFlavour(ctx contractapi.TransactionContextInterface, flavourID string) error {
+	flavourByte, err := ctx.GetStub().GetPrivateData(CollectionFlavours, flavourID)
+	if err != nil {
+		return err
+	}
+	if flavourByte == nil {
+		return errors.New("Delete Flavour fails - Flavour " + flavourID + " not exist")
+	}
+	return ctx.GetStub().DelPrivateData(CollectionFlavours, flavourID)
+}
+
+func (s *SmartContract) GetAllFlavours(ctx contractapi.TransactionContextInterface) ([]Flavour, error) {
+	flavourIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionFlavours, "", "")
+	if err != nil {
+		return nil, err
+	}
+	var results []Flavour
+	for flavourIterator.HasNext() {
+		queryResponse, err := flavourIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var flavour Flavour
+		err = json.Unmarshal(queryResponse.Value, &flavour)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, flavour)
+	}
+	err = flavourIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *SmartContract) GetFlavour(ctx contractapi.TransactionContextInterface, flavourID string) (*Flavour, error) {
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionFlavours, flavourID)
+	var flavour Flavour
+	if err != nil {
+		return nil, err
+	}
+	if byteData == nil {
+		return nil, errors.New("Get Flavour fails - Flavour " + flavourID + " not exist")
+	}
+	err = json.Unmarshal(byteData, &flavour)
+	if err != nil {
+		return nil, err
+	}
+	return &flavour, nil
+}
+
 func main() {
 	// See chaincode.env.example
 	config := serverConfig{
