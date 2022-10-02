@@ -6,6 +6,7 @@ import { logger } from "./logger";
 import { v4 as uuidv4 } from "uuid";
 import {createThingVisorOnKubernetes, updateThingVisor} from "./thingvisor";
 import {onMessageCreateVThing, onMessageDestroyThingVisorAck} from "./mqttcallback";
+import {createFlavourOnKubernetes} from "./flavour";
 
 export type JobData = {
   command: string;
@@ -99,6 +100,8 @@ export const processBackgroundJob = async (
     await updateThingVisor(job.data.userID, job.data.reqBody.thingVisorID, job.data.reqBody.tvDescription, job.data.reqBody.params);
   }else if(job.data.command == "destroy_thingvisor_ack"){
     await onMessageDestroyThingVisorAck(job.data.reqBody);
+  }else if(job.data.command == "create_flavour"){
+    await createFlavourOnKubernetes(job.data.userID, job.data.reqBody.imageName, job.data.reqBody.flavourID, job.data.reqBody.flavourParams, job.data.reqBody.flavourDescription, job.data.reqBody.yamlFiles)
   }
 };
 
