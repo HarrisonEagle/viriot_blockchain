@@ -24,14 +24,15 @@ export const onTvOutControlMessage = async (message:Buffer) => {
 export const onMessageRequestInit = async(thingVisorID: string) => {
   try{
     const contract = await getContract(thingVisorUser.get(thingVisorID)!);
-    let cmdata = await contract.evaluateTransaction('ThingVisorRunning', thingVisorID);
-    let cm : ChaincodeMessage = JSON.parse(cmdata.toString());
-    if(cm.message != MessageOK){
-      while(cm.message != MessageOK){
-        await new Promise(f => setTimeout(f, 100));
-        cmdata = await contract.evaluateTransaction('ThingVisorRunning',thingVisorID);
-        cm = JSON.parse(cmdata.toString());
+    let inited = false
+    while(!inited){
+      try{
+        await contract.evaluateTransaction('ThingVisorRunning', thingVisorID);
+        inited = true
+      }catch (e){
+        logger.debug({e}, "Maybe not started!")
       }
+      await new Promise(f => setTimeout(f, 100));
     }
     const CreateVThingCmd = {command: "createVThings", thingVisorID: thingVisorID};
     mqttClient.publish(`${thingVisorPrefix}/${thingVisorID}/${inControlSuffix}`, JSON.stringify(CreateVThingCmd).replace("\'", "\""));
@@ -47,14 +48,15 @@ export const onMessageCreateVThing = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
     const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
-    let cmdata = await contract.evaluateTransaction('ThingVisorRunning', tvID);
-    let cm : ChaincodeMessage = JSON.parse(cmdata.toString());
-    if(cm.message != MessageOK){
-      while(cm.message != MessageOK){
-        await new Promise(f => setTimeout(f, 1000));
-        cmdata = await contract.evaluateTransaction('ThingVisorRunning', tvID);
-        cm = JSON.parse(cmdata.toString());
+    let inited = false
+    while(!inited){
+      try{
+        await contract.evaluateTransaction('ThingVisorRunning', tvID);
+        inited = true
+      }catch (e){
+        logger.debug({e}, "Maybe not started!")
       }
+      await new Promise(f => setTimeout(f, 100));
     }
     await contract.submitTransaction("AddVThingToThingVisor", res.thingVisorID, JSON.stringify(res.vThing));
   }catch (e){
@@ -69,14 +71,13 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
     const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
-    const data = await contract.evaluateTransaction('GetThingVisor', tvID);
-    const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvID);
+    const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvID);
     const thingVisor = JSON.parse(data.toString());
-    const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
+    const vThings: VThingTVWithKey[] = thingVisor.vThings;
     const vThingKeys = vThings.map(element => element.key);
     await contract.submitTransaction("DeleteThingVisor", tvID, ...vThingKeys);
     if(!thingVisor.debug_mode){
-      await deleteThingVisorOnKubernetes(thingVisor);
+      await deleteThingVisorOnKubernetes(thingVisor.thingVisor);
     }
     mqttCallBack.delete(`${thingVisorPrefix}/${tvID}/${outControlSuffix}`);
     mqttClient.unsubscribe(`${thingVisorPrefix}/${tvID}/${outControlSuffix}`);

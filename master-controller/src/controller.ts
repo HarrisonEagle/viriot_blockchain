@@ -107,35 +107,25 @@ controller.post('/addThingVisor',
       }*/
       const contract =  res.locals.contract as Contract;
       const userID =  res.locals.userID as string;
-      const data = await contract.evaluateTransaction('ThingVisorExists', tvId);
-      const cm : ChaincodeMessage = JSON.parse(data.toString());
-      if(cm.message == MessageAssetExist){
-        return res.status(CONFLICT).json({
-          message: `Add fails - thingVisor ${tvId} already exists`
-        });
-      }
       const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING, additionalServicesNames: [], vThings: [], additionalDeploymentsNames: []};
       await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
 
-      const kc = req.app.locals["k8sconfig"] as k8s.KubeConfig;
-      const mqttc = res.app.locals["mqtt"] as  mqtt.MqttClient
       await addBackgroundJob(
         jobQueue!,
         "create_thingvisor",
         userID,
         req.body,
-      );
-
-
+      )
       return res.status(OK).json({
         result: "Thing Visor is Starting",
       });
     } catch (err) {
+      const error = err as FabricError
       logger.error({ err }, 'Error processing add thing visor request');
-      return res.status(INTERNAL_SERVER_ERROR).json({
-        status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-        timestamp: new Date().toISOString(),
-      });
+      if(error.responses){
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+      }
+      return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
     }
   });
 
@@ -156,15 +146,10 @@ controller.post('/updateThingVisor',
         const userID =  res.locals.userID as string;
         const updateInfo: string = req.body.updateInfo ? req.body.updateInfo : "";
         const contract =  res.locals.contract as Contract;
-        const data = await contract.evaluateTransaction('GetThingVisor', tvID);
-        if(data.toString() === ""){
-          return res.status(CONFLICT).json({
-            message: `Update fails - thingVisor ${tvID} not exists`
-          });
-        }
+        await contract.evaluateTransaction('GetThingVisor', tvID);
         const thingVisorEntry = {thingVisorID: tvID, tvDescription: "", params: ""};
         thingVisorEntry.tvDescription = tvDescription;
-        thingVisorEntry.params = tvParams;
+        thingVisorEntry.params = JSON.stringify(tvParams);
         if(thingVisorEntry.tvDescription !== "" || thingVisorEntry.params !== ""){
           //Update
           await addBackgroundJob(
@@ -187,11 +172,12 @@ controller.post('/updateThingVisor',
           message: `updating thingVisor ${tvID}`
         });
       } catch (err) {
+        const error = err as FabricError
         logger.error({ err }, 'Error processing get all thing visors request');
-        return res.status(INTERNAL_SERVER_ERROR).json({
-          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-          timestamp: new Date().toISOString(),
-        });
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
       }
     });
 
@@ -215,10 +201,12 @@ controller.get('/listThingVisors',
 
         return res.status(OK).json(assets);
       } catch (err) {
+        const error = err as FabricError
         logger.error({ err }, 'Error processing get all thing visors request');
-        return res.status(INTERNAL_SERVER_ERROR).json({
-          error: err
-        });
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
       }
 });
 
@@ -234,11 +222,12 @@ controller.get('/listVThings',
         }
         return res.status(OK).json(assets);
       } catch (err) {
+        const error = err as FabricError
         logger.error({ err }, 'Error processing get all vthings request');
-        return res.status(INTERNAL_SERVER_ERROR).json({
-          status: getReasonPhrase(INTERNAL_SERVER_ERROR),
-          timestamp: new Date().toISOString(),
-        });
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
       }
     });
 
@@ -267,18 +256,15 @@ controller.post('/inspectThingVisor',
         const tvId : string = req.body.thingVisorID;
         const contract =  res.locals.contract as Contract;
         const data = await contract.evaluateTransaction('GetThingVisor', tvId);
-        if(data.toString() === ""){
-          return res.status(CONFLICT).json({
-            message: `Inspect fails - thingVisor ${tvId} not exists`
-          });
-        }
         const thingVisor = JSON.parse(data.toString());
         return res.status(OK).json(thingVisor);
       } catch (err) {
+        const error = err as FabricError
         logger.error({ err }, 'Error processing inspect thing visors request');
-        return res.status(INTERNAL_SERVER_ERROR).json({
-          error: err
-        });
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
       }
     });
 
@@ -319,18 +305,10 @@ controller.post('/deleteThingVisor',
         }
         const tvId : string = req.body.thingVisorID;
         const contract =  res.locals.contract as Contract;
-        const data = await contract.evaluateTransaction('GetThingVisor', tvId);
-        if(data.toString() === ""){
-          return res.status(CONFLICT).json({
-            message: `Delete fails - thingVisor ${tvId} not exists`
-          });
-        }
+        const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvId);
         const thingVisor = JSON.parse(data.toString());
-        //const thingVisorEntry = {thingVisorID: tvId, status: STATUS_PENDING};
-        //await contract.submitTransaction('CreateThingVisor', tvId, JSON.stringify(thingVisorEntry));
         if(req.body.force) {
-          const vthingBuffer = await contract.evaluateTransaction('GetAllVThingOfThingVisorWithKeys', tvId);
-          const vThings: VThingTVWithKey[] = JSON.parse(vthingBuffer.toString());
+          const vThings: VThingTVWithKey[] = thingVisor.vThings;
           const vThingKeys = (thingVisor.vThings.length > 0) ? vThings.map(element => {
             const msg = {command: "deleteVThing", vThingID: element.vThing.id, vSiloID: "ALL"};
             mqttClient.publish(`${vThingPrefix}/${element.vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
@@ -338,7 +316,7 @@ controller.post('/deleteThingVisor',
           }) : [];
           await contract.submitTransaction("DeleteThingVisor", tvId, ...vThingKeys);
           if(!thingVisor.debug_mode){
-            await deleteThingVisorOnKubernetes(thingVisor);
+            await deleteThingVisorOnKubernetes(thingVisor.thingVisor);
           }
           mqttCallBack.delete(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
           mqttClient.unsubscribe(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
@@ -357,10 +335,12 @@ controller.post('/deleteThingVisor',
           result:  `thingVisor: ${tvId} deleting (force=false)`,
         });
       } catch (err) {
+        const error = err as FabricError
         logger.error({ err }, 'Error processing add thing visor request');
-        return res.status(INTERNAL_SERVER_ERROR).json({
-          message: "thingVisor delete fails"
-        });
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
       }
     });
 
