@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"io/ioutil"
@@ -57,17 +56,13 @@ type MQTTProfile struct {
 	Port string `json:"port"`
 }
 
-type ChaincodeMessage struct {
-	Message string `json:"message"`
-}
-
 func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
 	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	if err != nil {
 		return err
 	}
 	if exists != nil {
-		return fmt.Errorf("the asset %s already exists", id)
+		return errors.New("Add fails - thingVisor " + id + " already exists")
 	}
 	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
 }
@@ -99,19 +94,12 @@ func (s *SmartContract) UpdateThingVisorPartial(ctx contractapi.TransactionConte
 	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, assetJSON)
 }
 
-func (s *SmartContract) ThingVisorExists(ctx contractapi.TransactionContextInterface, id string) *ChaincodeMessage {
-	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
-	if err != nil || exists != nil {
-		message := &ChaincodeMessage{Message: MessageAssetExist}
-		return message
-	}
-	message := &ChaincodeMessage{Message: MessageAssetNotExist}
-	return message
-}
-
 func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterface, id string) (*ThingVisor, error) {
 	byteData, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	var thingVisor ThingVisor
+	if byteData == nil {
+		return nil, errors.New("Operation fails - thingVisor " + id + " not exists")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -142,20 +130,17 @@ func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterfac
 	return &thingVisor, nil
 }
 
-func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInterface, id string) *ChaincodeMessage {
+func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInterface, id string) error {
 	tv, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	var thingVisor ThingVisor
 	if err != nil {
-		message := &ChaincodeMessage{Message: err.Error()}
-		return message
+		return err
 	}
 	err = json.Unmarshal(tv, &thingVisor)
 	if err != nil || thingVisor.Status != STATUS_RUNNING {
-		message := &ChaincodeMessage{Message: MessageAssetNotRunning}
-		return message
+		return errors.New("ThingVisor " + id + "is not running!")
 	}
-	message := &ChaincodeMessage{Message: MessageOK}
-	return message
+	return nil
 }
 
 func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
@@ -191,8 +176,13 @@ func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterfa
 }
 
 type VThingTVWithKey struct {
-	Key    string   `json:"key"`
-	VThing VThingTV `json:"vThing"`
+	Key    string    `json:"key"`
+	VThing *VThingTV `json:"vThing"`
+}
+
+type ThingVisorWithVThingKey struct {
+	ThingVisor *ThingVisor       `json:"thingVisor"`
+	VThings    []VThingTVWithKey `json:"vThings"`
 }
 
 type VThingTV struct {
@@ -317,12 +307,24 @@ func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionCont
 	return results, nil
 }
 
-func (s *SmartContract) GetAllVThingOfThingVisorWithKeys(ctx contractapi.TransactionContextInterface, ThingVisorID string) ([]VThingTVWithKey, error) {
+func (s *SmartContract) GetThingVisorWithVThingKeys(ctx contractapi.TransactionContextInterface, ThingVisorID string) (*ThingVisorWithVThingKey, error) {
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
+	var thingVisor ThingVisor
+	if byteData == nil {
+		return nil, errors.New("Deletion fails - thingVisor " + ThingVisorID + " not exists")
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(byteData, &thingVisor)
+	if err != nil {
+		return nil, err
+	}
 	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, ThingVisorID})
 	if err != nil {
 		return nil, err
 	}
-	var results []VThingTVWithKey
+	var vThings []VThingTVWithKey
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
 		if err != nil {
@@ -333,13 +335,13 @@ func (s *SmartContract) GetAllVThingOfThingVisorWithKeys(ctx contractapi.Transac
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, VThingTVWithKey{Key: queryResponse.Key, VThing: vThingTV})
+		vThings = append(vThings, VThingTVWithKey{Key: queryResponse.Key, VThing: &vThingTV})
 	}
 	err = resultsIterator.Close()
 	if err != nil {
 		return nil, err
 	}
-	return results, nil
+	return &ThingVisorWithVThingKey{ThingVisor: &thingVisor, VThings: vThings}, nil
 }
 
 func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string, vThingData string) error {
