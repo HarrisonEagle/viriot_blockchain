@@ -200,6 +200,7 @@ type ThingVisor struct {
 	IpAddress                  string       `json:"ipAddress"`
 	DeploymentName             string       `json:"deploymentName"`
 	ServiceName                string       `json:"serviceName"`
+	ContainerID                string       `json:"containerID"`
 	VThings                    []VThingTV   `json:"vThings"` // 型は一定? (label id description)
 	Params                     string       `json:"params"`
 	MQTTDataBroker             *MQTTProfile `json:"MQTTDataBroker"`
@@ -457,6 +458,7 @@ func (s *SmartContract) GetAllFlavours(ctx contractapi.TransactionContextInterfa
 }
 
 func (s *SmartContract) GetFlavour(ctx contractapi.TransactionContextInterface, flavourID string) (*Flavour, error) {
+	ctx.GetClientIdentity()
 	byteData, err := ctx.GetStub().GetPrivateData(CollectionFlavours, flavourID)
 	var flavour Flavour
 	if err != nil {
@@ -466,10 +468,110 @@ func (s *SmartContract) GetFlavour(ctx contractapi.TransactionContextInterface, 
 		return nil, errors.New("Get Flavour fails - Flavour " + flavourID + " not exist")
 	}
 	err = json.Unmarshal(byteData, &flavour)
+	return &flavour, nil
+}
+
+type VirtualSilo struct {
+	VSiloID                    string       `json:"vSiloID"`
+	VSiloName                  string       `json:"vSiloName"`
+	CreationTime               string       `json:"creationTime"`
+	ContainerName              string       `json:"containerName"`
+	ContainerID                string       `json:"containerID"`
+	DeploymentName             string       `json:"deploymentName"`
+	ServiceName                string       `json:"serviceName"`
+	IPAddress                  string       `json:"ipAddress"`
+	FlavourID                  string       `json:"flavourID"`
+	FlavourParams              string       `json:"flavourParams"`
+	TenantID                   string       `json:"tenantID"`
+	Status                     string       `json:"status"`
+	Port                       string       `json:"port"`
+	MQTTDataBroker             *MQTTProfile `json:"MQTTDataBroker"`
+	MQTTControlBroker          *MQTTProfile `json:"MQTTControlBroker"`
+	AdditionalServicesNames    []string     `json:"additionalServicesNames"`
+	AdditionalDeploymentsNames []string     `json:"additionalDeploymentsNames"`
+}
+
+func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
+	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	if err != nil {
+		return err
+	}
+	if siloByte != nil {
+		return errors.New("WARNING Add fails - VirtualSilo " + VSiloID + " already exists")
+	}
+	data, err := json.Marshal(VirtualSilo{
+		VSiloID:                    VSiloID,
+		AdditionalServicesNames:    []string{},
+		AdditionalDeploymentsNames: []string{},
+		Status:                     STATUS_PENDING,
+	})
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().PutPrivateData(CollectionvSilos, VSiloID, data)
+}
+
+func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string, SiloData string) error {
+	data, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	if err != nil {
+		return err
+	}
+	if data == nil {
+		return errors.New("Update VirtualSilo fails - VirtualSilo " + VSiloID + " not exist")
+	}
+	return ctx.GetStub().PutPrivateData(CollectionvSilos, VSiloID, json.RawMessage(SiloData))
+}
+
+func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
+	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	if err != nil {
+		return err
+	}
+	if siloByte == nil {
+		return errors.New("Delete Flavour fails - Flavour " + VSiloID + " not exist")
+	}
+	return ctx.GetStub().DelPrivateData(CollectionvSilos, VSiloID)
+}
+
+func (s *SmartContract) GetAllVirtualSilos(ctx contractapi.TransactionContextInterface) ([]VirtualSilo, error) {
+	siloIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionvSilos, "", "")
 	if err != nil {
 		return nil, err
 	}
-	return &flavour, nil
+	var results []VirtualSilo
+	for siloIterator.HasNext() {
+		queryResponse, err := siloIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var silo VirtualSilo
+		err = json.Unmarshal(queryResponse.Value, &silo)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, silo)
+	}
+	err = siloIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *SmartContract) GetVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) (*VirtualSilo, error) {
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	var silo VirtualSilo
+	if err != nil {
+		return nil, err
+	}
+	if byteData == nil {
+		return nil, errors.New("Get VirtualSilo fails - VirtualSilo " + VSiloID + " not exist")
+	}
+	err = json.Unmarshal(byteData, &silo)
+	if err != nil {
+		return nil, err
+	}
+	return &silo, nil
 }
 
 func main() {

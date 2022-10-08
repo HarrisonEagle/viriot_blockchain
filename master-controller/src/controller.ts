@@ -20,41 +20,20 @@
 
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import { Contract, Wallet } from "fabric-network";
+import { Contract } from "fabric-network";
 import { getReasonPhrase, StatusCodes } from 'http-status-codes';
 import { logger } from './logger';
-import {
-  mqttControlBrokerHost,
-  mqttControlBrokerPort,
-  mqttControlBrokerSVCName,
-  mqttDataBrokerHost,
-  mqttDataBrokerPort
-} from "./config";
-import * as k8s from "@kubernetes/client-node";
-import * as mqtt from "mqtt";
-import {mqttCallBack,
-  onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
-import {
-  convertEnv,
-  convertHostAliases,
-  createDeploymentFromYaml,
-  createServiceFromYaml,
-  ENV,
-  ServiceInstance
-} from "./k8s";
-import { Queue } from "bullmq";
+import {mqttCallBack,} from "./mqttcallback";
 import { addBackgroundJob } from "./jobs";
-import { dnsSubdomainConverter } from "./util";
 import {jobQueue, mqttClient} from "./index";
 import {vThingPrefix} from "./VThing";
 import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
+import {getDeployZoneOnKubernetes} from "./k8s";
+import {defaultDeployZone} from "./config";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, NOT_FOUND, OK, CONFLICT, UNAUTHORIZED } = StatusCodes;
 
 export const controller = express.Router();
-export const MessageOK = "OK";
-export const MessageAssetExist = "Asset Exist!";
-export const MessageAssetNotExist= "Asset Not Exist!"
 export const STATUS_PENDING = "pending";
 export const STATUS_RUNNING = "running";
 export const STATUS_STOPPING = "stopping";
@@ -66,9 +45,7 @@ export const STATUS_ERROR = "error";
 
 // MiddlewareをbodyのVerificationの後に入れないとJSに変換した時エラーが出てしまう
 
-export interface ChaincodeMessage {
- message : string
-}
+/// APIs for ThingVisors
 controller.post('/addThingVisor',
   body('thingVisorID', 'must be a string').notEmpty(),
   body('params', 'must be a string').notEmpty(),
@@ -344,6 +321,7 @@ controller.post('/deleteThingVisor',
       }
     });
 
+/// APIs for Flavours
 
 controller.post('/addFlavour',
     body('flavourID', 'must be a string').notEmpty(),
@@ -493,6 +471,111 @@ controller.post('/deleteFlavour',
       }
     });
 
+/// APIs for VirtualSilos
 
+controller.post('/siloCreate',
+    body('tenantID', 'must be a string').notEmpty(),
+    body('vSiloName', 'must be a string').notEmpty(),
+    body('flavourID', 'must be a string').notEmpty(),
+    body('debug_mode', 'must be a string').notEmpty(),
+    async (req: Request, res: Response) => {
+      console.log('Create Virtual Silo request received');
+      try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(BAD_REQUEST).json({
+            status: getReasonPhrase(BAD_REQUEST),
+            reason: 'VALIDATION_ERROR',
+            message: 'Invalid request body',
+            timestamp: new Date().toISOString(),
+            errors: errors.array(),
+          });
+        }
+        const tenantID : string = req.body.tenantID;
+        const flavourID : string = req.body.flavourID;
+        const vSiloName : string = req.body.vSiloName;
+        const vSiloZone : string = req.body.vSiloZone;
+        const vSiloID = tenantID + "_" + req.body.vSiloName;
+        const userRes = res.locals.user;
+        const userID =  res.locals.userID as string;
+        const debugMode = req.body.debug_mode
+        if(userRes.role != "Admin" && userID != tenantID){
+          logger.debug("Permission denined!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        let deployZone : {zone: string, gw: string | undefined, keys: IterableIterator<string>} | {keys: IterableIterator<string>, zone?: undefined, gw?: undefined} | {zone: string} = {zone: defaultDeployZone}
+        if(vSiloZone && vSiloZone !== ""){
+          const zone = await getDeployZoneOnKubernetes(vSiloZone)
+          if(!zone.zone){
+            return res.status(UNAUTHORIZED).json({
+              message: `Silo create fails, zone ${vSiloZone} is not available `
+            });
+          }
+          /*
+          if(!zone.gw){
+            return res.status(UNAUTHORIZED).json({
+              message: `Silo create fails, gateway for zone ${vSiloZone} is not defined!`
+            });
+          }*/
+          deployZone = zone
+        }
+        const contract =  res.locals.contract as Contract;
+        const flavour = JSON.parse((await contract.evaluateTransaction('GetFlavour', flavourID)).toString());
+        await contract.submitTransaction('AddVirtualSilo', vSiloID)
+        await addBackgroundJob(
+            jobQueue!,
+            "create_vsilo",
+            userID,
+            {
+              vSiloID: vSiloID,
+              vSiloName: vSiloName,
+              tenantID: tenantID,
+              flavourParams: flavour.flavourParams,
+              debugMode: debugMode,
+              flavourImageName: flavour.imageName,
+              flavourID: flavour.flavourID,
+              yamlFiles: flavour.yamlFiles,
+              deployZone: deployZone
+            },
+        )
+        return res.status(OK).json({
+          result: `Creating VirtualSilo ${vSiloID}`,
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({ err }, 'Error processing add thing visor request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.get('/listVirtualSilos',
+    async (req: Request, res: Response) => {
+      console.log('Get all virtual silos request received');
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetAllVirtualSilos');
+        const assets =  (data.length > 0)  ? JSON.parse(data.toString()) : [];
+        return res.status(OK).json(assets);
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing get all virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
 
 

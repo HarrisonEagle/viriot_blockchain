@@ -5,27 +5,46 @@ import {logger} from "./logger";
 import {workingNamespace} from "./config";
 import {kc} from "./index";
 
-export type ENV =  {
+export type ENVThingVisor =  {
   MQTTDataBrokerIP: string,
   MQTTDataBrokerPort: string,
   MQTTControlBrokerIP: string,
   MQTTControlBrokerPort: string,
-  params: any,
-  thingVisorID: any
+  params: string,
+  thingVisorID: string
 }
 
+export type ENVVSilo =  {
+  MQTTDataBrokerIP: string,
+  MQTTDataBrokerPort: string,
+  MQTTControlBrokerIP: string,
+  MQTTControlBrokerPort: string,
+  flavourParams: string,
+  vSiloID: string,
+  tenantID: string}
 export type ServiceInstance = {
   prec: string,
   cluster_ip: string
 }
 
 
-export const convertEnv = (env: ENV, precEnv : Array<V1EnvVar>) => {
+export const convertThingVisorEnv = (env: ENVThingVisor, precEnv : Array<V1EnvVar>) => {
   let newEnv = precEnv;
-  for(const key of Object.keys(env) as (keyof ENV)[]){
+  for(const key of Object.keys(env) as (keyof ENVThingVisor)[]){
     newEnv.push({
         name: key,
         value: String(env[key])
+    });
+  }
+  return newEnv;
+}
+
+export const convertVSiloEnv = (env: ENVVSilo, precEnv : Array<V1EnvVar>) => {
+  let newEnv = precEnv;
+  for(const key of Object.keys(env) as (keyof ENVVSilo)[]){
+    newEnv.push({
+      name: key,
+      value: String(env[key])
     });
   }
   return newEnv;
@@ -73,6 +92,33 @@ export const deleteAdditionalServices = async (services: string[]) => {
   services.map(async (service)=>{
     await deleteService(kc, workingNamespace, service);
   });
+}
+
+export const getDeployZoneOnKubernetes = async (zone: string) => {
+  const client = kc.makeApiClient(k8s.CoreV1Api);
+  const response = await client.listNode()
+  const zones = new Map<string, string>();
+  response.body.items.forEach((node) => {
+    if(node.metadata?.labels?.hasOwnProperty('viriot-zone')){
+      if(node.metadata?.labels?.hasOwnProperty('viriot-gw')){
+        zones.set(node.metadata?.labels["viriot-zone"], node.metadata?.labels["viriot-gw"])
+      }else{
+        if(!zones.has(node.metadata?.labels["viriot-zone"])){
+          zones.set(node.metadata?.labels["viriot-zone"], "")
+        }
+      }
+    }
+  })
+  if(zone !== "" && zones.has(zone)){
+    return {
+      zone: zone,
+      gw: zones.get(zone),
+      keys: zones.keys()
+    }
+  }
+  return {
+    keys: zones.keys()
+  }
 }
 
 

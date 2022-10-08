@@ -1,13 +1,12 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
-import {jobQueue, mqttClient} from "./index";
-import {ChaincodeMessage, MessageOK, VThingTVWithKey} from "./controller";
+import { mqttClient} from "./index";
+import {VThingTVWithKey} from "./controller";
 import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
-import {vThingPrefix} from "./VThing";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
 export const thingVisorUser = new Map<string, string>();
-
+export const VSiloTenant = new Map<string, string>();
 
 export const onTvOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
@@ -19,6 +18,10 @@ export const onTvOutControlMessage = async (message:Buffer) => {
   }else if(res.command == "destroyTVAck"){
     await onMessageDestroyThingVisorAck(res);
   }
+};
+
+export const onVSiloOutControlMessage = async (message:Buffer) => {
+  const res = JSON.parse(message.toString().replace("\'", "\""));
 };
 
 export const onMessageRequestInit = async(thingVisorID: string) => {
