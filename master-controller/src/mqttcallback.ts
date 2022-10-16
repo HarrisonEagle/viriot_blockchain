@@ -5,16 +5,13 @@ import {VThingTVWithKey} from "./controller";
 import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
-export const thingVisorUser = new Map<string, string>();
-export const VSiloTenant = new Map<string, string>();
-
 export const onTvOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
   logger.debug("Receiverd Test Callback command");
   if(res.command == "createVThing") {
     await onMessageCreateVThing(res);
   }else if(res.command == "requestInit"){
-    await onMessageRequestInit(res.thingVisorID);
+    await onMessageRequestInit(res.thingVisorID, res.ownerID);
   }else if(res.command == "destroyTVAck"){
     await onMessageDestroyThingVisorAck(res);
   }
@@ -24,9 +21,9 @@ export const onVSiloOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
 };
 
-export const onMessageRequestInit = async(thingVisorID: string) => {
+export const onMessageRequestInit = async(thingVisorID: string, ownerID: string) => {
   try{
-    const contract = await getContract(thingVisorUser.get(thingVisorID)!);
+    const contract = await getContract(ownerID);
     let inited = false
     while(!inited){
       try{
@@ -50,7 +47,7 @@ export const onMessageRequestInit = async(thingVisorID: string) => {
 export const onMessageCreateVThing = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
-    const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
+    const contract = await getContract(res.ownerID);
     let inited = false
     while(!inited){
       try{
@@ -73,7 +70,7 @@ export const onMessageCreateVThing = async(res: any) => {
 export const onMessageDestroyThingVisorAck = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
-    const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
+    const contract = await getContract(res.ownerID);
     const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvID);
     const thingVisor = JSON.parse(data.toString());
     const vThings: VThingTVWithKey[] = thingVisor.vThings;

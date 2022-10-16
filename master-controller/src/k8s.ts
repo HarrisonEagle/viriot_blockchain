@@ -11,7 +11,8 @@ export type ENVThingVisor =  {
   MQTTControlBrokerIP: string,
   MQTTControlBrokerPort: string,
   params: string,
-  thingVisorID: string
+  thingVisorID: string,
+  OwnerID: string
 }
 
 export type ENVVSilo =  {
@@ -21,7 +22,9 @@ export type ENVVSilo =  {
   MQTTControlBrokerPort: string,
   flavourParams: string,
   vSiloID: string,
-  tenantID: string}
+  tenantID: string,
+  OwnerID: string,
+}
 export type ServiceInstance = {
   prec: string,
   cluster_ip: string

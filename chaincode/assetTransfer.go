@@ -207,6 +207,7 @@ type ThingVisor struct {
 	MQTTControlBroker          *MQTTProfile `json:"MQTTControlBroker"`
 	AdditionalServicesNames    []string     `json:"additionalServicesNames"`
 	AdditionalDeploymentsNames []string     `json:"additionalDeploymentsNames"`
+	OwnerID                    string       `json:"owner_id"`
 }
 
 func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInterface) ([]ThingVisor, error) {

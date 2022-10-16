@@ -8,7 +8,7 @@ import { NextFunction, Request, Response } from 'express';
 import { StatusCodes, getReasonPhrase } from 'http-status-codes';
 import * as config from './config';
 import { createClient } from "redis";
-import { User } from "./auth";
+import { User } from "./user";
 import jwt from "jsonwebtoken";
 import {createGateway, getContract, getNetwork} from "./fabric";
 import { Wallet } from "fabric-network";

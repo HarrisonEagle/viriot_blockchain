@@ -70,7 +70,7 @@ class FetcherThread(Thread):
 
             # publish changed entities
             data = [ngsiLdEntity1, ngsiLdEntity2]
-            message = {"data": data, "meta": {"vThingID": v_thing_ID}}
+            message = {"data": data, "ownerID": owner_ID, "meta": {"vThingID": v_thing_ID}}
             self.publish(message)
 
             time.sleep(self.sleep_time)  # possible fetch interval
@@ -102,16 +102,16 @@ class MqttControlThread(Thread):
 
     def on_message_get_thing_context(self, jres):
         silo_id = jres["vSiloID"]
-        message = {"command": "getContextResponse", "data": context_hello.get_all(), "meta": {"vThingID": v_thing_ID}}
+        message = {"command": "getContextResponse", "ownerID": owner_ID, "data": context_hello.get_all(), "meta": {"vThingID": v_thing_ID}}
         mqtt_control_client.publish(v_silo_prefix + "/" + silo_id + "/" + in_control_suffix, json.dumps(message))
 
     def send_destroy_v_thing_message(self):
-        msg = {"command": "deleteVThing", "vThingID": v_thing_ID, "vSiloID": "ALL"}
+        msg = {"command": "deleteVThing", "ownerID": owner_ID, "vThingID": v_thing_ID, "vSiloID": "ALL"}
         mqtt_control_client.publish(v_thing_prefix + "/" + v_thing_ID + "/" + out_control_suffix, json.dumps(msg))
         return
 
     def send_destroy_thing_visor_ack_message(self):
-        msg = {"command": "destroyTVAck", "thingVisorID": thing_visor_ID}
+        msg = {"command": "destroyTVAck", "ownerID": owner_ID, "thingVisorID": thing_visor_ID}
         mqtt_control_client.publish(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix, json.dumps(msg))
         return
 
@@ -172,6 +172,7 @@ class MqttControlThread(Thread):
 
         # Publish on the thingVisor out_control topic the createVThing command and other parameters
         v_thing_message = {"command": "createVThing",
+                           "ownerID": owner_ID,
                            "thingVisorID": thing_visor_ID,
                            "vThing": v_thing}
 
@@ -197,6 +198,7 @@ if __name__ == '__main__':
     MAX_RETRY = 3
     # v_thing_ID = os.environ["vThingID_0"]
     thing_visor_ID = os.environ["thingVisorID"]
+    owner_ID = os.environ["OwnerID"]
     print("Initializing Thing Visor "+ thing_visor_ID)
     v_thing_ID = thing_visor_ID + "/" + "hello"
     v_thing_label = "helloWorld"

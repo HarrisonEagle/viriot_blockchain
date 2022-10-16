@@ -347,6 +347,7 @@ if __name__ == '__main__':
         virIoT_mqtt_data_broker_port = int(os.environ["MQTTDataBrokerPort"])
         virIoT_mqtt_control_broker_IP = os.environ["MQTTControlBrokerIP"]
         virIoT_mqtt_control_broker_port = int(os.environ["MQTTControlBrokerPort"])
+        owner_ID = os.environ["OwnerID"]
 
     except Exception as e:
         print("Error: Parameters not found in os_environment", e)

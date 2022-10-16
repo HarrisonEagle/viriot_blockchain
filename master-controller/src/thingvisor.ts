@@ -14,7 +14,7 @@ import {
   mqttDataBrokerHost,
   mqttDataBrokerPort, workingNamespace
 } from "./config";
-import {mqttCallBack, onTvOutControlMessage, thingVisorUser} from "./mqttcallback";
+import {mqttCallBack, onTvOutControlMessage} from "./mqttcallback";
 import {
   convertThingVisorEnv,
   convertHostAliases,
@@ -64,7 +64,7 @@ export const createThingVisorOnKubernetes = async (
     MQTTControlBroker: mqttControlBroker,
     yamlFiles: yamlFiles,
     additionalServicesNames: [],
-    additionalDeploymentsNames: []
+    additionalDeploymentsNames: [],
   }
   const contract =  await getContract(userID);
   await contract.submitTransaction("UpdateThingVisor", thingVisorID, JSON.stringify(thingVisorEntry));
@@ -72,7 +72,6 @@ export const createThingVisorOnKubernetes = async (
   const topic = `${thingVisorPrefix}/${thingVisorID}/${outControlSuffix}`;
   logger.debug("Subsribed Topic:"+topic);
   mqttCallBack.set(topic, onTvOutControlMessage);
-  thingVisorUser.set(thingVisorID, userID);
   mqttClient.subscribe(topic);
   logger.debug("params:"+thingVisorParams)
   const env : ENVThingVisor= {
@@ -81,7 +80,8 @@ export const createThingVisorOnKubernetes = async (
     MQTTControlBrokerIP: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
     MQTTControlBrokerPort: mqttControlBrokerPort,
     params: thingVisorParams,
-    thingVisorID: thingVisorID
+    thingVisorID: thingVisorID,
+    OwnerID: userID,
   }
   let exposedorts= {};
   let deploymentName = "error";

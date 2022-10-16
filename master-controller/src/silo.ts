@@ -11,10 +11,7 @@ import {getContract} from "./fabric";
 import {logger} from "./logger";
 import {
     mqttCallBack,
-    onTvOutControlMessage,
     onVSiloOutControlMessage,
-    thingVisorUser,
-    VSiloTenant
 } from "./mqttcallback";
 import {kc, mqttClient} from "./index";
 import {
@@ -64,7 +61,6 @@ export const createVirtualSiloOnKubernetes = async (
     logger.debug("Creating VirtualSilo On K8s");
     const topic = `${vSiloPrefix}/${vSiloID}/${outControlSuffix}`;
     mqttCallBack.set(topic, onVSiloOutControlMessage);
-    VSiloTenant.set(vSiloID, userID); /// TODO: Tenantを先に作るべきか確認する
     mqttClient.subscribe(topic);
     const env : ENVVSilo = {
         tenantID: tenantID,
@@ -73,7 +69,8 @@ export const createVirtualSiloOnKubernetes = async (
         MQTTDataBrokerPort: mqttDataBrokerPort,
         MQTTControlBrokerIP: `${mqttControlBrokerSVCName}.${mqttControlBrokerHost}`,
         MQTTControlBrokerPort: mqttControlBrokerPort,
-        vSiloID: vSiloID
+        vSiloID: vSiloID,
+        OwnerID: userID,
     }
     let exposedorts= {};
     let deploymentName = "error";
