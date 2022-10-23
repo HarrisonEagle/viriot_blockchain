@@ -90,7 +90,7 @@ def on_in_control_msg(mosq, obj, msg):
 
 
 def on_message_add_vThing(jres):
-    # print("on_message_add_vThing")
+    print("on_message_add_vThing")
     try:
         v_thing_id = jres['vThingID']
         res = create_vThing_on_Broker(jres)
@@ -119,7 +119,7 @@ def on_message_add_vThing(jres):
 
 
 def on_message_delete_vThing(jres):
-    # print("on_message_delete_vThing")
+    print("on_message_delete_vThing")
     try:
         v_thing_id = jres['vThingID']
         # removing mqtt subscriptions and callbacks
@@ -146,7 +146,7 @@ def on_vThing_data(mosq, obj, msg):
         else:
             payload = msg.payload.decode("utf-8", "ignore")
             jres = json.loads(payload.replace("\'", "\""))
-        # print("enter on_vThing_data, msg.payload: " + str(jres))
+        print("enter on_vThing_data, msg.payload: " + str(jres))
         on_vThing_data_on_broker(jres)
     except Exception as ex:
         traceback.print_exc()

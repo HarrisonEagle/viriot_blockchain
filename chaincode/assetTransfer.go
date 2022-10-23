@@ -17,14 +17,18 @@ import (
 )
 
 const (
-	CollectionThingVisors string = "collectionThingVisors"
-	CollectionvThingTVs   string = "collectionvThingTVs"
-	CollectionvThings     string = "collectionvThings"
-	CollectionvSilos      string = "collectionvSilos"
-	CollectionFlavours    string = "collectionFlavours"
+	CollectionThingVisors  string = "collectionThingVisors"
+	CollectionvThingTVs    string = "collectionvThingTVs"
+	CollectionvThingVSilos string = "collectionvThingVSilos"
+	CollectionvSilos       string = "collectionvSilos"
+	CollectionFlavours     string = "collectionFlavours"
 
-	vThingTVObject string = "vThingTV"
-	vThingPrefix   string = "{vtprefix}"
+	vThingTVObject    string = "vThingTV"
+	vThingTVPrefix    string = "{vthingtvprefix}"
+	vSiloObject       string = "vSilo"
+	vSiloPrefix       string = "{vsiloprefix}"
+	vThingVSiloObject string = "vThingVSilo"
+	vThingVSiloPrefix string = "{vthingvsiloprefix}"
 
 	MessageOK              string = "OK"
 	MessageAssetNotExist   string = "Asset Not Exist!"
@@ -107,7 +111,7 @@ func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterfac
 	if err != nil {
 		return nil, err
 	}
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, id})
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix, id})
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +193,7 @@ type VThingTV struct {
 	Label       string `json:"label"`
 	ID          string `json:"id"`
 	Description string `json:"description"`
+	Type        string `json:"type"`
 }
 
 type ThingVisor struct {
@@ -211,7 +216,7 @@ type ThingVisor struct {
 }
 
 func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInterface) ([]ThingVisor, error) {
-	vThingIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix})
+	vThingIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix})
 	tvIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionThingVisors, "", "")
 	if err != nil {
 		return nil, err
@@ -260,7 +265,7 @@ func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInte
 }
 
 func (s *SmartContract) GetAllVThings(ctx contractapi.TransactionContextInterface) ([]VThingTV, error) {
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix})
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix})
 	if err != nil {
 		return nil, err
 	}
@@ -284,8 +289,29 @@ func (s *SmartContract) GetAllVThings(ctx contractapi.TransactionContextInterfac
 	return results, nil
 }
 
+func (s *SmartContract) GetVThingByID(ctx contractapi.TransactionContextInterface, VThingID string) (*VThingTV, error) {
+	var vThing VThingTV
+	keyArr := strings.Split(VThingID, "/")
+	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return nil, errors.New("Get VThing " + VThingID + "failed")
+	}
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionvThingTVs, key)
+	if byteData == nil {
+		return nil, errors.New("Get VThing Failed - VThing " + VThingID + " not exists")
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(byteData, &vThing)
+	if err != nil {
+		return nil, err
+	}
+	return &vThing, err
+}
+
 func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) ([]VThingTV, error) {
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, ThingVisorID})
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix, ThingVisorID})
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +348,7 @@ func (s *SmartContract) GetThingVisorWithVThingKeys(ctx contractapi.TransactionC
 	if err != nil {
 		return nil, err
 	}
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingPrefix, ThingVisorID})
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix, ThingVisorID})
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +397,7 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	if keyArr[0] != ThingVisorID {
 		return errors.New("WARNING Add fails - vThingID '" + newVThingID + "' not valid")
 	}
-	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingPrefix, keyArr[0], keyArr[1]})
+	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
 	if err != nil {
 		return err
 	}
@@ -493,7 +519,12 @@ type VirtualSilo struct {
 }
 
 func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
-	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + " failed.")
+	}
+	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, key)
 	if err != nil {
 		return err
 	}
@@ -509,29 +540,39 @@ func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterfa
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvSilos, VSiloID, data)
+	return ctx.GetStub().PutPrivateData(CollectionvSilos, key, data)
 }
 
 func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string, SiloData string) error {
-	data, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + " failed.")
+	}
+	data, err := ctx.GetStub().GetPrivateData(CollectionvSilos, key)
 	if err != nil {
 		return err
 	}
 	if data == nil {
 		return errors.New("Update VirtualSilo fails - VirtualSilo " + VSiloID + " not exist")
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvSilos, VSiloID, json.RawMessage(SiloData))
+	return ctx.GetStub().PutPrivateData(CollectionvSilos, key, json.RawMessage(SiloData))
 }
 
 func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
-	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + " failed.")
+	}
+	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, key)
 	if err != nil {
 		return err
 	}
 	if siloByte == nil {
 		return errors.New("Delete Flavour fails - Flavour " + VSiloID + " not exist")
 	}
-	return ctx.GetStub().DelPrivateData(CollectionvSilos, VSiloID)
+	return ctx.GetStub().DelPrivateData(CollectionvSilos, key)
 }
 
 func (s *SmartContract) GetAllVirtualSilos(ctx contractapi.TransactionContextInterface) ([]VirtualSilo, error) {
@@ -560,7 +601,12 @@ func (s *SmartContract) GetAllVirtualSilos(ctx contractapi.TransactionContextInt
 }
 
 func (s *SmartContract) GetVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) (*VirtualSilo, error) {
-	byteData, err := ctx.GetStub().GetPrivateData(CollectionvSilos, VSiloID)
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return nil, errors.New("Generate key of " + VSiloID + " failed.")
+	}
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionvSilos, key)
 	var silo VirtualSilo
 	if err != nil {
 		return nil, err
@@ -573,6 +619,133 @@ func (s *SmartContract) GetVirtualSilo(ctx contractapi.TransactionContextInterfa
 		return nil, err
 	}
 	return &silo, nil
+}
+
+func (s *SmartContract) GetVirtualSilosByTenantID(ctx contractapi.TransactionContextInterface, TenantID string) ([]VirtualSilo, error) {
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvSilos, vSiloObject, []string{vSiloPrefix, TenantID})
+	if err != nil {
+		return nil, err
+	}
+	var results []VirtualSilo
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var vSilo VirtualSilo
+		err = json.Unmarshal(queryResponse.Value, &vSilo)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, vSilo)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+type VThingVSilo struct {
+	TenantID     string `json:"tenantID"`
+	VSiloID      string `json:"vSiloID"`
+	CreationTime string `json:"creationTime"`
+	VThingID     string `json:"vThingID"`
+}
+
+func (s *SmartContract) AddVThingVSilo(ctx contractapi.TransactionContextInterface, VSiloID string, VThingID string, Data string) error {
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1], VThingID})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + VThingID + " failed.")
+	}
+	return ctx.GetStub().PutPrivateData(CollectionvThingVSilos, key, json.RawMessage(Data))
+}
+
+func (s *SmartContract) DeleteVThingVSilo(ctx contractapi.TransactionContextInterface, VSiloID string, VThingID string) error {
+	keyArr := strings.Split(VSiloID, "_")
+	key, err := ctx.GetStub().CreateCompositeKey(vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1], VThingID})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + VThingID + " failed.")
+	}
+	return ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key)
+}
+
+func (s *SmartContract) GetVThingVSilosByVSiloID(ctx contractapi.TransactionContextInterface, VSiloID string) ([]VThingVSilo, error) {
+	keyArr := strings.Split(VSiloID, "_")
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingVSilos, vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return nil, err
+	}
+	var results []VThingVSilo
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var vThingVSilo VThingVSilo
+		err = json.Unmarshal(queryResponse.Value, &vThingVSilo)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, vThingVSilo)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *SmartContract) GetVThingVSilosByTenantID(ctx contractapi.TransactionContextInterface, TenantID string) ([]VThingVSilo, error) {
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingVSilos, vThingVSiloObject, []string{vThingVSiloPrefix, TenantID})
+	if err != nil {
+		return nil, err
+	}
+	var results []VThingVSilo
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var vThingVSilo VThingVSilo
+		err = json.Unmarshal(queryResponse.Value, &vThingVSilo)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, vThingVSilo)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *SmartContract) GetVThingVSilo(ctx contractapi.TransactionContextInterface, VSiloID string, VThingID string) ([]VThingVSilo, error) {
+	keyArr := strings.Split(VSiloID, "_")
+	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingVSilos, vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1], VThingID})
+	if err != nil {
+		return nil, err
+	}
+	var results []VThingVSilo
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var vThingVSilo VThingVSilo
+		err = json.Unmarshal(queryResponse.Value, &vThingVSilo)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, vThingVSilo)
+	}
+	err = resultsIterator.Close()
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func main() {

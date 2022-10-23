@@ -27,18 +27,24 @@ import {mqttCallBack,} from "./mqttcallback";
 import { addBackgroundJob } from "./jobs";
 import {jobQueue, mqttClient, wallet} from "./index";
 import {vThingPrefix} from "./VThing";
-import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
+import {
+  deleteThingVisorOnKubernetes,
+  inControlSuffix,
+  outControlSuffix,
+  thingVisorPrefix,
+  vSiloPrefix
+} from "./thingvisor";
 import {getDeployZoneOnKubernetes} from "./k8s";
 import {defaultDeployZone} from "./config";
 import {getUserByID, User} from "./user";
 import mongoose from "mongoose";
 import * as config from "./config";
-import {buildCAClient} from "./fabric";
+import {buildCAClient, getContract} from "./fabric";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import {createClient} from "redis";
 
-const { BAD_REQUEST, INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED } = StatusCodes;
+const { BAD_REQUEST, INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED, CONFLICT } = StatusCodes;
 
 export const controller = express.Router();
 export const STATUS_PENDING = "pending";
@@ -797,8 +803,9 @@ controller.post('/siloCreate',
           }*/
           deployZone = zone
         }
-        const contract =  res.locals.contract as Contract;
+        const contract = await getContract(userID);
         const flavour = JSON.parse((await contract.evaluateTransaction('GetFlavour', flavourID)).toString());
+        //key: tenantID/vSiloID
         await contract.submitTransaction('AddVirtualSilo', vSiloID)
         await addBackgroundJob(
             jobQueue!,
@@ -847,6 +854,191 @@ controller.get('/listVirtualSilos',
       } catch (err) {
         const error = err as FabricError
         logger.error({err}, 'Error processing get all virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/inspectVirtualSilo',
+    async (req: Request, res: Response) => {
+      console.log('Get all virtual silos request received');
+      try {
+        const userRes = res.locals.user;
+        const vSiloID : string = req.body.vSiloID;
+        const tenantID : string = vSiloID.split('_')[0]
+        let userID =  res.locals.userID as string;
+        if(userID != tenantID){
+          const tenant = await getUserByID(tenantID)
+          if(userRes.role != "Admin" || !tenant){
+            return res.status(UNAUTHORIZED).json({
+              message: "operation not allowed"
+            });
+          }
+          userID = tenant.userID!;
+        }
+        const contract = await getContract(userID);
+        const vSilo = JSON.parse((await contract.evaluateTransaction('GetVirtualSilo', vSiloID)).toString());
+        const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+        const vThings = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+        return res.status(OK).json({
+          vSilo: vSilo,
+          vThings: vThings
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing inspect virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/inspectTenant',
+    async (req: Request, res: Response) => {
+      console.log('Get all virtual silos request received');
+      try {
+        const userRes = res.locals.user;
+        const tenantID : string = req.body.tenantID;
+        let userID =  res.locals.userID as string;
+        if(userID != tenantID){
+          const tenant = await getUserByID(tenantID)
+          if(userRes.role != "Admin" || !tenant){
+            return res.status(UNAUTHORIZED).json({
+              message: "operation not allowed"
+            });
+          }
+          userID = tenant.userID!;
+        }
+        const contract = await getContract(userID);
+        const vSilosData = await contract.evaluateTransaction('GetVirtualSilosByTenantID', tenantID);
+        const vSilos =  (vSilosData.length > 0)  ? JSON.parse(vSilosData.toString()) : [];
+        const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByTenantID', tenantID);
+        const vThings = (vThingsData.length > 0)  ? JSON.parse(vThingsData.toString()) : [];
+        return res.status(OK).json({
+          vSilos: vSilos,
+          vThings: vThings
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing inspect virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+/// VThing API
+export interface VThingVSilo{
+  tenantID: string
+  vSiloID: string
+  creationTime: string
+  vThingID: string
+}
+
+controller.post('/addVThing',
+    async (req: Request, res: Response) => {
+      console.log('add vthing request received');
+      try {
+        let userID =  res.locals.userID as string;
+        const tenantID : string = req.body.tenantID;
+        const vThingID : string = req.body.vThingID;
+        const userRes = res.locals.user;
+        if(userID != tenantID){
+          const tenant = await getUserByID(tenantID)
+          if(userRes.role != "Admin" || !tenant){
+            return res.status(UNAUTHORIZED).json({
+              message: "operation not allowed"
+            });
+          }
+          userID = tenant.userID!;
+        }
+        const contract = await getContract(userID);
+        const vThing = JSON.parse((await contract.evaluateTransaction('GetVThingByID', vThingID)).toString());
+        const vSiloID : string = tenantID + "_" + req.body.vSiloName;
+        const vSilo = JSON.parse((await contract.evaluateTransaction('GetVirtualSilo', vSiloID)).toString());
+        if(vSilo.status !== STATUS_RUNNING){
+          return res.status(CONFLICT).json({
+            message: `Add fails - virtual silo ${vSiloID} is not ready`
+          });
+        }
+        //Check VThingVSilo Exist here
+        /// TODO: xxx
+        //key: tenantID/vSiloID/vThingID
+        const vThingVSilos  = await contract.evaluateTransaction('GetVThingVSilo', vSiloID, vThingID);
+        if(vThingVSilos.length > 0){
+          return res.status(CONFLICT).json({
+            message:  `Add fails - Virtual thing ${vThingID} already exists for tenantID ${tenantID} and vSiloID ${vSiloID}`
+          });
+        }
+        const vThingType = vThing.type ?? ""
+        const mqttMessage = {
+          command: "addVThing",
+          vSiloID: vSiloID,
+          vThingID: vThingID,
+          vThingType: vThingType,
+        }
+        mqttClient.publish(`${vSiloPrefix}/${vSiloID}/${inControlSuffix}`, JSON.stringify(mqttMessage).replace("\'", "\""));
+        const vThingVSiloEntry = {
+          tenantID: tenantID,
+          vThingID: vThingID,
+          creationTime: new Date().toISOString(),
+          vSiloID: vSiloID
+        }
+        await contract.submitTransaction("AddVThingVSilo", vSiloID, vThingID, JSON.stringify(vThingVSiloEntry));
+        return res.status(OK).json({"message": 'vThing created'});
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing add vthing request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/deleteVThing',
+    async (req: Request, res: Response) => {
+      console.log('delete vthing request received');
+      try {
+        const tenantID : string = req.body.tenantID;
+        const vThingID : string = req.body.vThingID;
+        const userRes = res.locals.user;
+        let userID =  res.locals.userID as string;
+        if(userID != tenantID){
+          const tenant = await getUserByID(tenantID)
+          if(userRes.role != "Admin" || !tenant){
+            return res.status(UNAUTHORIZED).json({
+              message: "operation not allowed"
+            });
+          }
+          userID = tenant.userID!;
+        }
+        const contract = await getContract(userID);
+        const vSiloID : string= tenantID + "_" + req.body.vSiloName;
+        //Check VThingVSilo Exist here
+        /// TODO: xxx
+        //key: tenantID/vSiloID/vThingID
+        const vThingVSilos = await contract.evaluateTransaction('GetVThingVSilo', vSiloID, vThingID);
+        if(vThingVSilos.length === 0){
+          return res.status(CONFLICT).json({
+            message:  `Delete fails - Virtual Thing ID, tenantID or vSiloID not valid`
+          });
+        }
+        const mqttMessage = {
+          command: "deleteVThing",
+          vSiloID: vSiloID,
+          vThingID: vThingID,
+        }
+        await contract.submitTransaction("DeleteVThingVSilo", vSiloID, vThingID);
+        mqttClient.publish(`${vSiloPrefix}/${vSiloID}/${inControlSuffix}`, JSON.stringify(mqttMessage).replace("\'", "\""));
+        return res.status(OK).json({"message": `deleted virtual thing: ${vThingID}`});
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing delete vthing request');
         if(error.responses){
           return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
         }
