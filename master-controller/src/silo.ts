@@ -20,9 +20,9 @@ import {
     createDeploymentFromYaml,
     createServiceFromYaml,
     ENVVSilo,
-    ServiceInstance
+    ServiceInstance, deleteDeployment, deleteService, deleteAdditionalDeployments, deleteAdditionalServices
 } from "./k8s";
-import {outControlSuffix, thingVisorPrefix, vSiloPrefix} from "./thingvisor";
+import {outControlSuffix, vSiloPrefix} from "./thingvisor";
 
 export const createVirtualSiloOnKubernetes = async (
     userID: string,
@@ -106,6 +106,7 @@ export const createVirtualSiloOnKubernetes = async (
                 //yaml["spec"]["template"]["spec"]["nodeSelector"] = {"viriot-zone": req.body.tvZone}
 
                 deploymentName = `${yaml.metadata!.name!}-${labelApp}`;
+                yaml.metadata!.name = deploymentName
                 deploymentsNamesList.push(deploymentName);
             }else if(y.kind === "Service"){
                 const yaml = y as k8s.V1Service;
@@ -161,4 +162,20 @@ export const createVirtualSiloOnKubernetes = async (
     }catch (e) {
         logger.debug({e},"Error to Create ThingVisor!");
     }
+}
+
+export const deleteVirtualSiloOnKubernetes = async (siloEntry : any) => {
+    const vSiloID = siloEntry.vSiloID;
+    logger.debug(`Deleting Deployment ${vSiloID}`);
+    const deploymentName = siloEntry.deploymentName;
+    const serviceName = siloEntry.serviceName;
+    if(deploymentName !== ""){
+        logger.debug(`stopping deployment: ${deploymentName}, and service: ${serviceName}`);
+        await deleteDeployment(kc, workingNamespace, deploymentName);
+    }
+    if(serviceName !== ""){
+        await deleteService(kc, workingNamespace, serviceName);
+    }
+    await deleteAdditionalDeployments(siloEntry.additionalDeploymentsNames);
+    await deleteAdditionalServices(siloEntry.additionalServicesNames);
 }

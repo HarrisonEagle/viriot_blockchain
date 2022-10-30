@@ -194,6 +194,7 @@ type VThingTV struct {
 	ID          string `json:"id"`
 	Description string `json:"description"`
 	Type        string `json:"type"`
+	Endpoint    string `json:"endpoint"`
 }
 
 type ThingVisor struct {
@@ -212,7 +213,6 @@ type ThingVisor struct {
 	MQTTControlBroker          *MQTTProfile `json:"MQTTControlBroker"`
 	AdditionalServicesNames    []string     `json:"additionalServicesNames"`
 	AdditionalDeploymentsNames []string     `json:"additionalDeploymentsNames"`
-	OwnerID                    string       `json:"owner_id"`
 }
 
 func (s *SmartContract) GetAllThingVisors(ctx contractapi.TransactionContextInterface) ([]ThingVisor, error) {
@@ -404,6 +404,73 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte)
 }
 
+func (s *SmartContract) UpdateVThingOfThingVisor(ctx contractapi.TransactionContextInterface, VThingID string, vThingData string) error {
+	var VThing VThingTV
+	VThingByte := json.RawMessage(vThingData)
+	if err := json.Unmarshal(VThingByte, &VThing); err != nil {
+		return err
+	}
+	keyArr := strings.Split(VThingID, "/")
+	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, VThingByte)
+}
+
+func (s *SmartContract) GetVThingOfThingVisor(ctx contractapi.TransactionContextInterface, VThingID string) (*VThingTV, error) {
+	keyArr := strings.Split(VThingID, "/")
+	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return nil, errors.New("Error to create composite key of" + VThingID)
+	}
+	byteData, err := ctx.GetStub().GetPrivateData(CollectionvThingTVs, key)
+	var vThing VThingTV
+	if byteData == nil {
+		return nil, errors.New("VThing " + VThingID + " not exists")
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(byteData, &vThing)
+	if err != nil {
+		return nil, err
+	}
+	return &vThing, nil
+}
+
+func (s *SmartContract) DeleteVThingFromThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string, vThingData string) error {
+	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
+	if err != nil {
+		return err
+	}
+	if thingVisorByte == nil {
+		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " not exist")
+	}
+	var thingVisor ThingVisor
+	if err := json.Unmarshal(thingVisorByte, &thingVisor); err != nil {
+		return err
+	}
+	if thingVisor.Status != STATUS_RUNNING {
+		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " is not ready")
+	}
+	var newVThing VThingTV
+	newVThingByte := json.RawMessage(vThingData)
+	if err := json.Unmarshal(newVThingByte, &newVThing); err != nil {
+		return err
+	}
+	newVThingID := newVThing.ID
+	keyArr := strings.Split(newVThingID, "/")
+	if keyArr[0] != ThingVisorID {
+		return errors.New("WARNING Add fails - vThingID '" + newVThingID + "' not valid")
+	}
+	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().DelPrivateData(CollectionvThingTVs, key)
+}
+
 type Flavour struct {
 	FlavourID          string   `json:"flavourID"`
 	FlavourParams      string   `json:"flavourParams"`
@@ -559,22 +626,6 @@ func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInte
 	return ctx.GetStub().PutPrivateData(CollectionvSilos, key, json.RawMessage(SiloData))
 }
 
-func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
-	keyArr := strings.Split(VSiloID, "_")
-	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
-	if err != nil {
-		return errors.New("Generate key of " + VSiloID + " failed.")
-	}
-	siloByte, err := ctx.GetStub().GetPrivateData(CollectionvSilos, key)
-	if err != nil {
-		return err
-	}
-	if siloByte == nil {
-		return errors.New("Delete Flavour fails - Flavour " + VSiloID + " not exist")
-	}
-	return ctx.GetStub().DelPrivateData(CollectionvSilos, key)
-}
-
 func (s *SmartContract) GetAllVirtualSilos(ctx contractapi.TransactionContextInterface) ([]VirtualSilo, error) {
 	siloIterator, err := ctx.GetStub().GetPrivateDataByRange(CollectionvSilos, "", "")
 	if err != nil {
@@ -644,6 +695,27 @@ func (s *SmartContract) GetVirtualSilosByTenantID(ctx contractapi.TransactionCon
 		return nil, err
 	}
 	return results, nil
+}
+
+func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
+	keyArr := strings.Split(VSiloID, "_")
+	for _, vThingID := range ctx.GetStub().GetStringArgs()[1:] {
+		key, err := ctx.GetStub().CreateCompositeKey(vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1], vThingID})
+		if err != nil {
+			return errors.New("Generate key of " + VSiloID + vThingID + " failed.")
+		}
+		if err := ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key); err != nil {
+			return errors.New("Warning - Delete VThing" + vThingID + " Failed.")
+		}
+	}
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	if err != nil {
+		return errors.New("Generate key of " + VSiloID + " failed.")
+	}
+	if err := ctx.GetStub().DelPrivateData(CollectionvSilos, key); err != nil {
+		return errors.New("Warning - Delete VirtualSilo " + VSiloID + " Failed.")
+	}
+	return nil
 }
 
 type VThingVSilo struct {

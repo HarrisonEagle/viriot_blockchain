@@ -1,24 +1,35 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
 import { mqttClient} from "./index";
-import {VThingTVWithKey} from "./controller";
-import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
+import {VThingTVWithKey, VThingVSilo} from "./controller";
+import {
+  deleteThingVisorOnKubernetes,
+  inControlSuffix,
+  outControlSuffix,
+  thingVisorPrefix,
+  vSiloPrefix
+} from "./thingvisor";
+import {deleteVirtualSiloOnKubernetes} from "./silo";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
 export const onTvOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
-  logger.debug("Receiverd Test Callback command");
+  logger.debug("Receiverd Thing Visor Callback command");
   if(res.command == "createVThing") {
     await onMessageCreateVThing(res);
-  }else if(res.command == "requestInit"){
+  }else if(res.command === "requestInit"){
     await onMessageRequestInit(res.thingVisorID, res.ownerID);
-  }else if(res.command == "destroyTVAck"){
+  }else if(res.command === "destroyTVAck"){
     await onMessageDestroyThingVisorAck(res);
   }
 };
 
 export const onVSiloOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
+  logger.debug("Receiverd Virtual Silo Callback command");
+  if(res.command === "destroyVSiloAck"){
+    await onMessageDestroyVirtualSiloAck(res);
+  }
 };
 
 export const onMessageRequestInit = async(thingVisorID: string, ownerID: string) => {
@@ -88,3 +99,25 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
     );
   }
 }
+
+export const onMessageDestroyVirtualSiloAck = async(res: any) => {
+  try{
+    const vSiloID = res.vSiloID;
+    const contract = await getContract(res.ownerID);
+    const vSilo = JSON.parse((await contract.evaluateTransaction('GetVirtualSilo', vSiloID)).toString());
+    await deleteVirtualSiloOnKubernetes(vSilo);
+    const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+    const vThings : VThingVSilo[] = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+    const vThingIDs = vThings.map((element) => element.vThingID);
+    await contract.submitTransaction("DeleteVirtualSilo", vSiloID, ...vThingIDs)
+    mqttCallBack.delete(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+    mqttClient.unsubscribe(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+  }catch (e){
+    logger.error(
+        { e },
+        "Error Destroy Thing Visor"
+    );
+  }
+}
+
+

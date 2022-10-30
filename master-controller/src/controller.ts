@@ -43,6 +43,7 @@ import {buildCAClient, getContract} from "./fabric";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import {createClient} from "redis";
+import {deleteVirtualSiloOnKubernetes} from "./silo";
 
 const { BAD_REQUEST, INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED, CONFLICT } = StatusCodes;
 
@@ -836,31 +837,6 @@ controller.post('/siloCreate',
       }
     });
 
-controller.get('/listVirtualSilos',
-    async (req: Request, res: Response) => {
-      console.log('Get all virtual silos request received');
-      try {
-        const userRes = res.locals.user;
-        if(userRes.role != "Admin"){
-          logger.debug("User role is Not Admin!");
-          return res.status(UNAUTHORIZED).json({
-            message: "operation not allowed"
-          });
-        }
-        const contract =  res.locals.contract as Contract;
-        const data = await contract.evaluateTransaction('GetAllVirtualSilos');
-        const assets =  (data.length > 0)  ? JSON.parse(data.toString()) : [];
-        return res.status(OK).json(assets);
-      } catch (err) {
-        const error = err as FabricError
-        logger.error({err}, 'Error processing get all virtual silos request');
-        if(error.responses){
-          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
-        }
-        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
-      }
-    });
-
 controller.post('/inspectVirtualSilo',
     async (req: Request, res: Response) => {
       console.log('Get all virtual silos request received');
@@ -889,6 +865,77 @@ controller.post('/inspectVirtualSilo',
       } catch (err) {
         const error = err as FabricError
         logger.error({err}, 'Error processing inspect virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.get('/listVirtualSilos',
+    async (req: Request, res: Response) => {
+      console.log('Get all virtual silos request received');
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const contract =  res.locals.contract as Contract;
+        const data = await contract.evaluateTransaction('GetAllVirtualSilos');
+        const assets =  (data.length > 0)  ? JSON.parse(data.toString()) : [];
+        return res.status(OK).json(assets);
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing get all virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/siloDestroy',
+    async (req: Request, res: Response) => {
+      console.log('Get all virtual silos request received');
+      try {
+        const userRes = res.locals.user;
+        const tenantID : string = req.body.tenantID;
+        const vSiloID = tenantID + "_" + req.body.vSiloName;
+        let userID =  res.locals.userID as string;
+        if(userID != tenantID){
+          const tenant = await getUserByID(tenantID)
+          if(userRes.role != "Admin" || !tenant){
+            return res.status(UNAUTHORIZED).json({
+              message: "operation not allowed"
+            });
+          }
+          userID = tenant.userID!;
+        }
+        const contract = await getContract(userID);
+        const vSilo = JSON.parse((await contract.evaluateTransaction('GetVirtualSilo', vSiloID)).toString());
+        if(req.body.force){
+          await deleteVirtualSiloOnKubernetes(vSilo);
+          const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+          const vThings : VThingVSilo[] = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+          const vThingIDs = vThings.map((element) => element.vThingID);
+          await contract.submitTransaction("DeleteVirtualSilo", vSiloID, ...vThingIDs)
+          mqttCallBack.delete(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+          mqttClient.unsubscribe(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+          return res.status(OK).json({
+            message: `Virtual Silo ${vSiloID} destroyed (force=true)`
+          });
+        }
+        const destroyCmd = {command: "destroyVSilo", vSiloID: vSiloID};
+        mqttClient.publish(`${vSiloPrefix}/${vSiloID}/${inControlSuffix}`, JSON.stringify(destroyCmd).replace("\'", "\""));
+        return res.status(OK).json({
+          message: `Destroying virtual silo ${vSiloID}`
+        });
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error destroy virtual silos request');
         if(error.responses){
           return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
         }
