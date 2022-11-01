@@ -529,6 +529,7 @@ export interface VThingTV{
   label: string
   id: string
   description: string
+  endpoint: string
 }
 
 export interface VThingTVWithKey{
@@ -1086,6 +1087,80 @@ controller.post('/deleteVThing',
       } catch (err) {
         const error = err as FabricError
         logger.error({err}, 'Error processing delete vthing request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/setVThingEndpoint',
+    async (req: Request, res: Response) => {
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const contract =  res.locals.contract as Contract;
+        const endpoint: string = req.body.endpoint;
+        const vThingID: string = req.body.vThingID;
+        const tvId: string = vThingID.split("/")[0];
+        const thingVisor = JSON.parse((await contract.evaluateTransaction('GetThingVisor', tvId)).toString());
+        if(thingVisor.status != STATUS_RUNNING){
+          return res.status(CONFLICT).json({ message: `Set endpoint fails - ThingVisor ${tvId} is not ready` });
+        }
+        const vThing: VThingTV = JSON.parse((await contract.evaluateTransaction('GetVThingByID', vThingID)).toString());
+        vThing.endpoint = endpoint
+        const mqttMessage = {
+          command: "setVThingEndpoint",
+          vThingID: vThingID,
+          endpoint: endpoint,
+        }
+        mqttClient.publish(`${thingVisorPrefix}/${tvId}/${inControlSuffix}`, JSON.stringify(mqttMessage).replace("\'", "\""));
+        await contract.submitTransaction("UpdateVThingOfThingVisor", vThingID, JSON.stringify(vThing));
+        return res.status(OK).json({"message": "vThing endpoint created"});
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing get all virtual silos request');
+        if(error.responses){
+          return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
+        }
+        return res.status(INTERNAL_SERVER_ERROR).json({ error: error.message });
+      }
+    });
+
+controller.post('/delVThingEndpoint',
+    async (req: Request, res: Response) => {
+      try {
+        const userRes = res.locals.user;
+        if(userRes.role != "Admin"){
+          logger.debug("User role is Not Admin!");
+          return res.status(UNAUTHORIZED).json({
+            message: "operation not allowed"
+          });
+        }
+        const contract =  res.locals.contract as Contract;
+        const vThingID: string = req.body.vThingID;
+        const tvId: string = vThingID.split("/")[0];
+        const thingVisor = JSON.parse((await contract.evaluateTransaction('GetThingVisor', tvId)).toString());
+        if(thingVisor.status != STATUS_RUNNING){
+          return res.status(CONFLICT).json({ message: `Set endpoint fails - ThingVisor ${tvId} is not ready` });
+        }
+        const vThing: VThingTV = JSON.parse((await contract.evaluateTransaction('GetVThingByID', vThingID)).toString());
+        vThing.endpoint = ""
+        const mqttMessage = {
+          command: "delVThingEndpoint",
+          vThingID: vThingID
+        }
+        mqttClient.publish(`${thingVisorPrefix}/${tvId}/${inControlSuffix}`, JSON.stringify(mqttMessage).replace("\'", "\""));
+        await contract.submitTransaction("UpdateVThingOfThingVisor", vThingID, JSON.stringify(vThing));
+        return res.status(OK).json({"message": "vThing endpoint deleted"});
+      } catch (err) {
+        const error = err as FabricError
+        logger.error({err}, 'Error processing get all virtual silos request');
         if(error.responses){
           return res.status(INTERNAL_SERVER_ERROR).json({ error: error.responses[0].response.message });
         }
