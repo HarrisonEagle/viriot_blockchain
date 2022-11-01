@@ -38,6 +38,12 @@ export const logLevel = env
   .default('info')
   .asEnum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']);
 
+export const defaultDeployZone = env
+    .get('DEFAULT_VIRIOT_ZONE')
+    .default(`Japan`)
+    .example(`Japan`)
+    .asString();
+
 /**
  * The port to start the REST server on
  */

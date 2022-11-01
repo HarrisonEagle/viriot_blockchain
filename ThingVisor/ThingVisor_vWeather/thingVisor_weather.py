@@ -106,18 +106,18 @@ class mqttControlThread(Thread):
     def on_message_get_thing_context(self, jres):
         silo_id = jres["vSiloID"]
         v_thing_id = jres["vThingID"]
-        message = {"command": "getContextResponse", "data": contexts[v_thing_id].get_all(), "meta": {"vThingID": v_thing_id}}
+        message = {"command": "getContextResponse", "ownerID": owner_ID, "data": contexts[v_thing_id].get_all(), "meta": {"vThingID": v_thing_id}}
         mqtt_control_client.publish(v_silo_prefix + "/" + silo_id + "/" + in_control_suffix, json.dumps(message))
 
     def send_destroy_v_thing_message(self):
         for v_thing in v_things:
             v_thing_ID = v_thing["vThing"]["id"]
-            msg = {"command": "deleteVThing", "vThingID": v_thing_ID, "vSiloID": "ALL"}
+            msg = {"command": "deleteVThing", "ownerID": owner_ID, "vThingID": v_thing_ID, "vSiloID": "ALL"}
             mqtt_control_client.publish(v_thing_prefix + "/" + v_thing_ID + "/" + out_control_suffix, json.dumps(msg))
         return
 
     def send_destroy_thing_visor_ack_message(self):
-        msg = {"command": "destroyTVAck", "thingVisorID": thing_visor_ID}
+        msg = {"command": "destroyTVAck", "ownerID": owner_ID, "thingVisorID": thing_visor_ID}
         mqtt_control_client.publish(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix, json.dumps(msg))
         return
 
@@ -149,6 +149,7 @@ class mqttControlThread(Thread):
         for v_thing in v_things:
             v_thing_topic = v_thing["topic"]
             v_thing_message = {"command": "createVThing",
+                               "ownerID": owner_ID,
                                "thingVisorID": thing_visor_ID,
                                "vThing": v_thing["vThing"]}
             mqtt_control_client.publish(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix,
@@ -181,7 +182,7 @@ class mqttControlThread(Thread):
         mqtt_control_client.connect(MQTT_control_broker_IP, MQTT_control_broker_port, 30)
         print("mqtttopic:")
         print(tv_control_prefix + "/" + thing_visor_ID + "/" + out_control_suffix)
-        init_message = {"command": "requestInit", "thingVisorID": thing_visor_ID}
+        init_message = {"command": "requestInit", "ownerID": owner_ID, "thingVisorID": thing_visor_ID}
         mqtt_control_client.subscribe(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix)
         mqtt_control_client.message_callback_add(tv_control_prefix + "/" + thing_visor_ID + "/" + in_control_suffix,
                                                  self.on_message_in_control_TV)
@@ -196,6 +197,7 @@ if __name__ == '__main__':
     MAX_RETRY = 3
 
     thing_visor_ID = os.environ["thingVisorID"]
+    owner_ID = os.environ["OwnerID"]
     print("Initializing Thing Visor "+ thing_visor_ID)
     # Mosquitto settings
     tv_control_prefix = "TV"  # prefix name for controller communication topic

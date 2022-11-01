@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import {createThingVisorOnKubernetes, updateThingVisor} from "./thingvisor";
 import {onMessageCreateVThing, onMessageDestroyThingVisorAck} from "./mqttcallback";
 import {createFlavourOnKubernetes} from "./flavour";
+import {createVirtualSiloOnKubernetes} from "./silo";
 
 export type JobData = {
   command: string;
@@ -102,6 +103,8 @@ export const processBackgroundJob = async (
     await onMessageDestroyThingVisorAck(job.data.reqBody);
   }else if(job.data.command == "create_flavour"){
     await createFlavourOnKubernetes(job.data.userID, job.data.reqBody.imageName, job.data.reqBody.flavourID, job.data.reqBody.flavourParams, job.data.reqBody.flavourDescription, job.data.reqBody.yamlFiles)
+  }else if(job.data.command == "create_vsilo"){
+    await createVirtualSiloOnKubernetes(job.data.userID, job.data.reqBody.vSiloID, job.data.reqBody.vSiloName, job.data.reqBody.tenantID, job.data.reqBody.flavourParams, job.data.reqBody.debugMode, job.data.reqBody.flavourImageName, job.data.reqBody.flavourID, (job.data.reqBody.yamlFiles as string[]).map((yaml) => JSON.parse(yaml)), job.data.reqBody.deployZone)
   }
 };
 
@@ -145,16 +148,4 @@ export const addBackgroundJob = async (
   }
 
   return job.id;
-};
-
-/**
- * Helper to update the data for an existing job
- */
-export const updateJobData = async (
-  job: Job<JobData, JobResult>,
-  transaction: Transaction | undefined
-): Promise<void> => {
-  const newData = { ...job.data };
-  newData.command = "";
-  await job.update(newData);
 };

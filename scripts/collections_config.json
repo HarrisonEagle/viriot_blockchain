@@ -18,7 +18,7 @@
       "memberOnlyWrite": true
    },
     {
-        "name": "collectionvThings",
+        "name": "collectionvThingVSilos",
         "policy": "OR('Org1MSP.member', 'Org2MSP.member')",
         "requiredPeerCount": 0,
         "maxPeerCount": 16,

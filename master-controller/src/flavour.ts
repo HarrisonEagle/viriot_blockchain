@@ -1,7 +1,10 @@
 import * as k8s from "@kubernetes/client-node";
-import {STATUS_ERROR, STATUS_READY} from "./controller";
+import {STATUS_ERROR, STATUS_READY, VThingTVWithKey} from "./controller";
 import {getContract} from "./fabric";
 import {logger} from "./logger";
+import {deleteThingVisorOnKubernetes, outControlSuffix, thingVisorPrefix} from "./thingvisor";
+import {mqttClient} from "./index";
+import {mqttCallBack} from "./mqttcallback";
 export const createFlavourOnKubernetes = async (
     userID: string,
     imageName: string,

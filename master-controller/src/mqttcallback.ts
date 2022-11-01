@@ -1,29 +1,42 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
-import {jobQueue, mqttClient} from "./index";
-import {ChaincodeMessage, MessageOK, VThingTVWithKey} from "./controller";
-import {deleteThingVisorOnKubernetes, inControlSuffix, outControlSuffix, thingVisorPrefix} from "./thingvisor";
-import {vThingPrefix} from "./VThing";
+import { mqttClient} from "./index";
+import {VThingTVWithKey, VThingVSilo} from "./controller";
+import {
+  deleteThingVisorOnKubernetes,
+  inControlSuffix,
+  outControlSuffix,
+  thingVisorPrefix,
+  vSiloPrefix
+} from "./thingvisor";
+import {deleteVirtualSiloOnKubernetes} from "./silo";
 
 export const mqttCallBack = new Map<string,(message:Buffer) => Promise<void>>();
-export const thingVisorUser = new Map<string, string>();
-
-
 export const onTvOutControlMessage = async (message:Buffer) => {
   const res = JSON.parse(message.toString().replace("\'", "\""));
-  logger.debug("Receiverd Test Callback command");
+  logger.debug("Receiverd Thing Visor Callback command");
   if(res.command == "createVThing") {
     await onMessageCreateVThing(res);
-  }else if(res.command == "requestInit"){
-    await onMessageRequestInit(res.thingVisorID);
-  }else if(res.command == "destroyTVAck"){
+  }else if(res.command === "requestInit"){
+    await onMessageRequestInit(res.thingVisorID, res.ownerID);
+  }else if(res.command === "destroyTVAck"){
     await onMessageDestroyThingVisorAck(res);
   }
 };
 
-export const onMessageRequestInit = async(thingVisorID: string) => {
+export const onVSiloOutControlMessage = async (message:Buffer) => {
+  const res = JSON.parse(message.toString().replace("\'", "\""));
+  logger.debug("Receiverd Virtual Silo Callback command");
+  if(res.command === "destroyVSiloAck"){
+    await onMessageDestroyVirtualSiloAck(res);
+  }else if(res.command === "restoreVThingsAck"){
+    await onMessageRestoreVThingsAck(res);
+  }
+};
+
+export const onMessageRequestInit = async(thingVisorID: string, ownerID: string) => {
   try{
-    const contract = await getContract(thingVisorUser.get(thingVisorID)!);
+    const contract = await getContract(ownerID);
     let inited = false
     while(!inited){
       try{
@@ -47,7 +60,7 @@ export const onMessageRequestInit = async(thingVisorID: string) => {
 export const onMessageCreateVThing = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
-    const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
+    const contract = await getContract(res.ownerID);
     let inited = false
     while(!inited){
       try{
@@ -70,7 +83,7 @@ export const onMessageCreateVThing = async(res: any) => {
 export const onMessageDestroyThingVisorAck = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
-    const contract = await getContract(thingVisorUser.get(res.thingVisorID)!);
+    const contract = await getContract(res.ownerID);
     const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvID);
     const thingVisor = JSON.parse(data.toString());
     const vThings: VThingTVWithKey[] = thingVisor.vThings;
@@ -88,3 +101,41 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
     );
   }
 }
+
+export const onMessageDestroyVirtualSiloAck = async(res: any) => {
+  try{
+    const vSiloID = res.vSiloID;
+    const contract = await getContract(res.ownerID);
+    const vSilo = JSON.parse((await contract.evaluateTransaction('GetVirtualSilo', vSiloID)).toString());
+    await deleteVirtualSiloOnKubernetes(vSilo);
+    const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+    const vThings : VThingVSilo[] = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+    const vThingIDs = vThings.map((element) => element.vThingID);
+    await contract.submitTransaction("DeleteVirtualSilo", vSiloID, ...vThingIDs)
+    mqttCallBack.delete(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+    mqttClient.unsubscribe(`${vSiloPrefix}/${vSiloID}/${outControlSuffix}`);
+  }catch (e){
+    logger.error(
+        { e },
+        "Error Destroy Thing Visor"
+    );
+  }
+}
+
+export const onMessageRestoreVThingsAck = async(res: any) => {
+  try{
+    const vSiloID = res.vSiloID;
+    const contract = await getContract(res.ownerID);
+    const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+    const vThings : VThingVSilo[] = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+    const restoreVThingsCmd = {command: "restoreVThings", vThings: vThings};
+    mqttClient.publish(`${vSiloPrefix}/${vSiloID}/${inControlSuffix}`, JSON.stringify(restoreVThingsCmd).replace("\'", "\""));
+  }catch (e){
+    logger.error(
+        { e },
+        "Error Rstore VThings vsilo"
+    );
+  }
+}
+
+
