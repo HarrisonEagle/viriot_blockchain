@@ -29,6 +29,8 @@ export const onVSiloOutControlMessage = async (message:Buffer) => {
   logger.debug("Receiverd Virtual Silo Callback command");
   if(res.command === "destroyVSiloAck"){
     await onMessageDestroyVirtualSiloAck(res);
+  }else if(res.command === "restoreVThingsAck"){
+    await onMessageRestoreVThingsAck(res);
   }
 };
 
@@ -116,6 +118,22 @@ export const onMessageDestroyVirtualSiloAck = async(res: any) => {
     logger.error(
         { e },
         "Error Destroy Thing Visor"
+    );
+  }
+}
+
+export const onMessageRestoreVThingsAck = async(res: any) => {
+  try{
+    const vSiloID = res.vSiloID;
+    const contract = await getContract(res.ownerID);
+    const vThingsData = await contract.evaluateTransaction('GetVThingVSilosByVSiloID', vSiloID);
+    const vThings : VThingVSilo[] = (vThingsData.length > 0) ? JSON.parse(vThingsData.toString()) : [];
+    const restoreVThingsCmd = {command: "restoreVThings", vThings: vThings};
+    mqttClient.publish(`${vSiloPrefix}/${vSiloID}/${inControlSuffix}`, JSON.stringify(restoreVThingsCmd).replace("\'", "\""));
+  }catch (e){
+    logger.error(
+        { e },
+        "Error Rstore VThings vsilo"
     );
   }
 }

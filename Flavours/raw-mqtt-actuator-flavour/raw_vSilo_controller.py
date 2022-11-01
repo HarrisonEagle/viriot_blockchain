@@ -49,6 +49,7 @@ class MqttControlThread(Thread):
         mqtt_virIoT_control_client.subscribe(
             v_silo_prefix + "/" + v_silo_id + "/" + in_control_suffix)
         print("Thread mqtt_virIoT_control_client started")
+        send_restore_vthings_message()
         mqtt_virIoT_control_client.loop_forever()
         print("Thread mqtt_virIoT_data_client terminated")
 
@@ -61,6 +62,11 @@ class broker_thread(Thread):
         initEnv()
         print("Thread broker started")
 
+def send_restore_vthings_message():
+    msg = {"command": "restoreVThingsAck", "ownerID": owner_ID,  "vSiloID": v_silo_id}
+    mqtt_virIoT_control_client.publish(
+        v_silo_prefix + "/" + v_silo_id + "/" + out_control_suffix, str(msg).replace("\'", "\""))
+    return
 
 # topic messages
 def on_in_control_msg(mosq, obj, msg):
@@ -82,12 +88,24 @@ def on_in_control_msg(mosq, obj, msg):
             del jres["command"]
             on_vThing_data(mosq, obj, json.dumps(jres))
             return "received context response"
+        elif commandType == "restoreVThings":
+            del jres["command"]
+            on_message_restore_virtual_things(jres)
+            return "received restore virtual things"
         else:
             return "invalid command"
     except Exception as ex:
         traceback.print_exc()
         return 'invalid command'
 
+def on_message_restore_virtual_things(jres):
+    print("restore_virtual_things called")
+    connected_v_things = jres["vThings"]
+    if len(connected_v_things) > 0:
+        for vThing in connected_v_things:
+            if "vThingID" in vThing:
+                print("restoring virtual thing with ID: " + vThing['vThingID'])
+                on_message_add_vThing(vThing)
 
 def on_message_add_vThing(jres):
     print("on_message_add_vThing")
@@ -301,20 +319,6 @@ def publish_on_virIoT(message, out_topic):
     mqtt_virIoT_data_client.publish(out_topic, msg)
 
 
-def restore_virtual_things():
-    # Retrieve from system db the list of virtual thing in use and restore them
-    # needed in case of silo controller restart
-    # db_client = MongoClient('mongodb://' + db_IP + ':' + str(db_port) + '/')
-    # db = db_client[db_name]
-    # connected_v_things = json.loads(
-    #    dumps(db[v_thing_collection].find({"vSiloID": v_silo_id}, {"vThingID": 1, "_id": 0})))
-    #if len(connected_v_things) > 0:
-    #    for vThing in connected_v_things:
-    #        if "vThingID" in vThing:
-    #            print("restoring virtual thing with ID: " + vThing['vThingID'])
-    #            on_message_add_vThing(vThing)
-    print("testing")
-
 
 def handler(signal, frame):
     sys.exit()
@@ -380,7 +384,6 @@ if __name__ == '__main__':
     virIoT_mqtt_control_thread.start()
 
     # restore virtual things found in the systemDB. It is useful after vSilo crash and restore (e.g. by k8s)
-    restore_virtual_things()
 
     while True:
         try:
