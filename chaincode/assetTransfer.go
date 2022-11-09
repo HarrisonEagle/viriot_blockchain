@@ -68,6 +68,7 @@ func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInter
 	if exists != nil {
 		return errors.New("Add fails - thingVisor " + id + " already exists")
 	}
+	ctx.GetStub().SetEvent("CreateThingVisor", json.RawMessage(JSONstr))
 	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
 }
 
