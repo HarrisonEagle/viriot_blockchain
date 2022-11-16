@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"io/ioutil"
@@ -60,6 +61,32 @@ type MQTTProfile struct {
 	Port string `json:"port"`
 }
 
+type History struct {
+	EventName string               `json:"event_name"`
+	Time      *timestamp.Timestamp `json:"time"`
+	TxID      string               `json:"tx_id"`
+	UserID    string               `json:"user_id"`
+	UserMSPID string               `json:"user_mspid"`
+}
+
+func SetHistory(ctx contractapi.TransactionContextInterface, EventName string) error {
+	time, _ := ctx.GetStub().GetTxTimestamp()
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	history := History{
+		EventName: EventName,
+		Time:      time,
+		TxID:      ctx.GetStub().GetTxID(),
+		UserID:    userID,
+		UserMSPID: userMSPID,
+	}
+	byte, err := json.Marshal(history)
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().SetEvent(EventName, byte)
+}
+
 func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
 	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	if err != nil {
@@ -68,8 +95,10 @@ func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInter
 	if exists != nil {
 		return errors.New("Add fails - thingVisor " + id + " already exists")
 	}
-	ctx.GetStub().SetEvent("CreateThingVisor", json.RawMessage(JSONstr))
-	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
+	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr)); err != nil {
+		return err
+	}
+	return SetHistory(ctx, "CreateThingVisor")
 }
 
 func (s *SmartContract) UpdateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
