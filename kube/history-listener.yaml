@@ -69,6 +69,20 @@ spec:
               value: "root"
             - name: MONGO_PASSWORD
               value: "example"
+            - name: INFLUXDB_HOST
+              value: "influxdb"
+            - name: INFLUXDB_PORT
+              value: "8086"
+            - name: INFLUXDB_PROTOCOL
+              value: "http"
+            - name: INFLUXDB_DBNAME
+              value: "monitoring"
+            - name: INFLUXDB_USERNAME
+              value: "user"
+            - name: INFLUXDB_PASSWORD
+              value: "influxdbpw"
+            - name: INFLUXDB_MEASUREMENT
+              value: "viriot_blockchain_history"
             - name: JWT_SECRET
               value: "UYG867ti867f(/&$SWRUco)(YPO/T"
           envFrom:

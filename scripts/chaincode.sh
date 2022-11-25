@@ -71,6 +71,7 @@ function deploy_chaincode() {
   local cc_name=$1
   local cc_label=$2
   local cc_folder=$(absolute_path $3)
+  local cc_sequence=$4
 
   local temp_folder=$(mktemp -d)
   local cc_package=${temp_folder}/${cc_name}.tgz
@@ -87,7 +88,7 @@ function deploy_chaincode() {
   fi
 
   launch_chaincode        ${cc_name} ${CHAINCODE_ID} ${CHAINCODE_IMAGE}
-  activate_chaincode      ${cc_name} ${cc_package}
+  activate_chaincode      ${cc_name} ${cc_package} ${cc_sequence}
 }
 
 # Infer a reasonable name for the chaincode image based on the folder path conventions, or
@@ -111,14 +112,15 @@ function set_chaincode_image() {
 function activate_chaincode() {
   local cc_name=$1
   local cc_package=$2
+  local cc_sequence=$3
 
   install_chaincode_for org1 peer1 ${cc_package} Org1MSP
   install_chaincode_for org1 peer2 ${cc_package} Org1MSP
-  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org1 peer1 Org1MSP
+  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org1 peer1 Org1MSP ${cc_sequence}
   install_chaincode_for org2 peer1 ${cc_package} Org2MSP
   install_chaincode_for org2 peer2 ${cc_package} Org2MSP
-  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org2 peer1 Org2MSP
-  commit_chaincode    ${cc_name}
+  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org2 peer1 Org2MSP ${cc_sequence}
+  commit_chaincode    ${cc_name} ${cc_sequence}
 }
 
 function query_chaincode() {
@@ -298,7 +300,8 @@ function approve_chaincode() {
   local cc_name=$1
   local cc_id=$2
   local orgname=$5
-  push_fn "Approving chaincode ${cc_name} with ID ${cc_id}"
+  local cc_sequence=$6
+  push_fn "Approving chaincode ${cc_name} with ID ${cc_id} sequence ${cc_sequence}"
 
   export_peer_context $org $peer $orgname
 
@@ -307,7 +310,7 @@ function approve_chaincode() {
     --name          ${cc_name} \
     --version       1 \
     --package-id    ${cc_id} \
-    --sequence      1 \
+    --sequence      ${cc_sequence} \
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --collections-config scripts/collections_config.json \
@@ -319,6 +322,7 @@ function approve_chaincode() {
 # commit the named chaincode for an org
 function commit_chaincode() {
   local cc_name=$1
+  local cc_sequence=$2
   push_fn "Committing chaincode ${cc_name}"
 
   peer lifecycle \
@@ -326,7 +330,7 @@ function commit_chaincode() {
     --channelID     ${CHANNEL_NAME} \
     --name          ${cc_name} \
     --version       1 \
-    --sequence      1 \
+    --sequence      ${cc_sequence} \
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \

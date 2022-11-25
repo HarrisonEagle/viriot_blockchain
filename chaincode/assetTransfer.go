@@ -7,7 +7,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"io/ioutil"
@@ -61,24 +60,29 @@ type MQTTProfile struct {
 	Port string `json:"port"`
 }
 
-type History struct {
-	EventName string               `json:"event_name"`
-	Time      *timestamp.Timestamp `json:"time"`
-	TxID      string               `json:"tx_id"`
-	UserID    string               `json:"user_id"`
-	UserMSPID string               `json:"user_mspid"`
+type GraphNode struct {
+	StartNode string `json:"start_node"`
+	EndNode   string `json:"end_node"`
 }
 
-func SetHistory(ctx contractapi.TransactionContextInterface, EventName string) error {
+type History struct {
+	EventName  string      `json:"event_name"`
+	Time       string      `json:"time"`
+	TxID       string      `json:"tx_id"`
+	UserID     string      `json:"user_id"`
+	UserMSPID  string      `json:"user_mspid"`
+	GraphNodes []GraphNode `json:"graph_nodes"`
+}
+
+func SetHistory(ctx contractapi.TransactionContextInterface, EventName string, nodes []GraphNode, userID string, userMSPID string) error {
 	time, _ := ctx.GetStub().GetTxTimestamp()
-	userID, _ := ctx.GetClientIdentity().GetID()
-	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
 	history := History{
-		EventName: EventName,
-		Time:      time,
-		TxID:      ctx.GetStub().GetTxID(),
-		UserID:    userID,
-		UserMSPID: userMSPID,
+		EventName:  EventName,
+		Time:       time.String(),
+		TxID:       ctx.GetStub().GetTxID(),
+		UserID:     userID,
+		UserMSPID:  userMSPID,
+		GraphNodes: nodes,
 	}
 	byte, err := json.Marshal(history)
 	if err != nil {
@@ -98,7 +102,12 @@ func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInter
 	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr)); err != nil {
 		return err
 	}
-	return SetHistory(ctx, "CreateThingVisor")
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "CreateThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {

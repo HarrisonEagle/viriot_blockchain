@@ -5,24 +5,59 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
-import { ChaincodeEvent, CloseableAsyncIterable, connect, Contract, GatewayError, Network, Gateway } from '@hyperledger/fabric-gateway';
-import { TextDecoder } from 'util';
-import { newGrpcConnection, newIdentity, newSigner } from './connect';
-import {chaincodeName, channelName} from "./config";
+import {
+    ChaincodeEvent,
+    CloseableAsyncIterable,
+    connect,
+    Contract,
+    Gateway,
+    GatewayError,
+    Network
+} from '@hyperledger/fabric-gateway';
+import {TextDecoder} from 'util';
+import {newGrpcConnection, newIdentity, newSigner} from './connect';
+import {
+    chaincodeName,
+    channelName,
+    influxDBHost,
+    influxDBMeasurement,
+    influxDBName, influxDBPassword,
+    influxDBPort,
+    influxDBUserName
+} from "./config";
 import express from 'express'
+import {FieldType, InfluxDB} from "influx";
+
 const app: express.Express = express()
 let gateway: Gateway | undefined
-let firstBlockNumber = BigInt(0)
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 const utf8Decoder = new TextDecoder();
 
+const historys = Array();
+
+const influxDB = new InfluxDB({
+    host: influxDBHost,
+    port: influxDBPort,
+    database: influxDBName,
+    username: influxDBUserName,
+    password: influxDBPassword,
+    schema: [{
+        measurement: influxDBMeasurement,
+        fields: {
+            start_node: FieldType.STRING,
+            end_node: FieldType.STRING,
+            requests: FieldType.INTEGER
+        },
+        tags: [
+            'user'
+        ]
+    }]
+})
+
 app.get('/history', async (req: express.Request, res: express.Response) => {
-    const network = gateway!.getNetwork(channelName);
-    const results = await replayChaincodeEvents(network);
-    console.log("returning")
-    return res.status(200).json(results);
+    return res.status(200).json(historys);
 })
 
 app.listen(3000,  async () => {
@@ -49,40 +84,23 @@ app.listen(3000,  async () => {
 
     try {
         const network = gateway.getNetwork(channelName);
-        const contract = network.getContract(chaincodeName);
-
-        firstBlockNumber = await createAsset(contract);
-        console.log(`first block number ${firstBlockNumber}`)
         // Listen for events emitted by subsequent transactions
         events = await startEventListening(network);
         // Replay events from the block containing the first transaction
-        //await replayChaincodeEvents(network);
+        await replayChaincodeEvents(network);
     }
     finally {
         events?.close();
         gateway.close();
     }
 })
-
-async function createAsset(contract: Contract): Promise<bigint> {
-
-    const result = await contract.submitAsync('GetAllThingVisors' );
-    const status = await result.getStatus();
-    if (!status.successful) {
-        throw new Error(`failed to commit transaction ${status.transactionId} with status code ${status.code}`);
-    }
-    console.log('\n*** CreateAsset committed successfully');
-
-    return status.blockNumber;
-}
-
 async function startEventListening(network: Network): Promise<CloseableAsyncIterable<ChaincodeEvent> | undefined> {
     try{
         console.log('\n*** Start chaincode event listening');
 
         const events = await network.getChaincodeEvents(chaincodeName);
 
-        await readEvents(events); // Don't await - run asynchronously
+        void readEvents(events); // Don't await - run asynchronously
         return events;
     }catch (e){
         console.log(e)
@@ -93,8 +111,25 @@ async function startEventListening(network: Network): Promise<CloseableAsyncIter
 async function readEvents(events: CloseableAsyncIterable<ChaincodeEvent>): Promise<void> {
     try {
         for await (const event of events) {
-            const payload = parseJson(event.payload);
+            const payload = parseHistory(event.payload);
             console.log(`\n<-- Chaincode event received: ${event.eventName} -`, payload);
+            for(const node of payload.graph_nodes) {
+                const result = await influxDB.query(`
+                    select * from ${influxDBMeasurement} where start_node = $start_node and end_node = $end_node
+                `, {
+                    placeholders: {
+                        start_node: node.start_node,
+                        end_node: node.end_node,
+                    }
+                })
+                await influxDB.writePoints([{
+                    measurement: influxDBMeasurement,
+                    tags: {user: payload.user_id},
+                    fields: {start_node: node.start_node, end_node: node.end_node, requests: result.length}
+                }
+                ])
+            }
+
         }
     } catch (error: unknown) {
         // Ignore the read error when events.close() is called explicitly
@@ -104,7 +139,19 @@ async function readEvents(events: CloseableAsyncIterable<ChaincodeEvent>): Promi
     }
 }
 
-function parseJson(jsonBytes: Uint8Array): unknown {
+interface History {
+    event_name: string
+    time: string
+    tx_id: string
+    user_id: string
+    user_mspid: string
+    graph_nodes: {
+        start_node: string
+        end_node: string
+    }[]
+}
+
+function parseHistory(jsonBytes: Uint8Array) : History{
     const json = utf8Decoder.decode(jsonBytes);
     return JSON.parse(json);
 }
@@ -114,15 +161,13 @@ async function replayChaincodeEvents(network: Network){
     const events = await network.getChaincodeEvents(chaincodeName, { startBlock: BigInt(0) }); // 0 to replay all
     try {
         console.log('\n*** Start chaincode event replay ');
-        let result = []
         for await (const event of events) {
             console.log("Parsing events")
-            const payload = parseJson(event.payload);
-            result.push(payload)
+            const payload = parseHistory(event.payload);
+            historys.push(payload)
             console.log(`\n<-- Chaincode event replayed: ${event.eventName} -`, payload);
         }
         console.log("*** finished replay chaincode events")
-        return result
     } catch (e) {
         console.log(e)
     }finally {
