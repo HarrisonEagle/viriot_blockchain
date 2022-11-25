@@ -808,7 +808,7 @@ controller.post('/siloCreate',
         const contract = await getContract(userID);
         const flavour = JSON.parse((await contract.evaluateTransaction('GetFlavour', flavourID)).toString());
         //key: tenantID/vSiloID
-        await contract.submitTransaction('AddVirtualSilo', vSiloID)
+        await contract.submitTransaction('AddVirtualSilo', vSiloID, flavourID)
         await addBackgroundJob(
             jobQueue!,
             "create_vsilo",

@@ -87,7 +87,7 @@ app.listen(3000,  async () => {
         // Listen for events emitted by subsequent transactions
         events = await startEventListening(network);
         // Replay events from the block containing the first transaction
-        await replayChaincodeEvents(network);
+        //await replayChaincodeEvents(network);
     }
     finally {
         events?.close();
@@ -100,7 +100,7 @@ async function startEventListening(network: Network): Promise<CloseableAsyncIter
 
         const events = await network.getChaincodeEvents(chaincodeName);
 
-        void readEvents(events); // Don't await - run asynchronously
+        await readEvents(events); // Don't await - run asynchronously
         return events;
     }catch (e){
         console.log(e)
@@ -122,12 +122,27 @@ async function readEvents(events: CloseableAsyncIterable<ChaincodeEvent>): Promi
                         end_node: node.end_node,
                     }
                 })
-                await influxDB.writePoints([{
-                    measurement: influxDBMeasurement,
-                    tags: {user: payload.user_id},
-                    fields: {start_node: node.start_node, end_node: node.end_node, requests: result.length}
+                if(node.delete){
+                    await influxDB.dropSeries({
+                        measurement: influxDBMeasurement,
+                        where: `"start_node" = '${node.start_node}' and "end_node" = '${node.end_node}'`
+                    })
+                    await influxDB.queryRaw(`
+                     select * from ${influxDBMeasurement} where start_node = $start_node and end_node = $end_node
+                `, {
+                        placeholders: {
+                            start_node: node.start_node,
+                            end_node: node.end_node,
+                        }
+                    })
+                }else{
+                    await influxDB.writePoints([{
+                        measurement: influxDBMeasurement,
+                        tags: {user: payload.user_id},
+                        fields: {start_node: node.start_node, end_node: node.end_node, requests: result.length}
+                    }
+                    ])
                 }
-                ])
             }
 
         }
@@ -148,6 +163,7 @@ interface History {
     graph_nodes: {
         start_node: string
         end_node: string
+        delete: boolean
     }[]
 }
 
