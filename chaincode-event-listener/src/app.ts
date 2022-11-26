@@ -9,7 +9,6 @@ import {
     ChaincodeEvent,
     CloseableAsyncIterable,
     connect,
-    Contract,
     Gateway,
     GatewayError,
     Network
@@ -25,17 +24,11 @@ import {
     influxDBPort,
     influxDBUserName
 } from "./config";
-import express from 'express'
 import {FieldType, InfluxDB} from "influx";
 
-const app: express.Express = express()
 let gateway: Gateway | undefined
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
 
 const utf8Decoder = new TextDecoder();
-
-const historys = Array();
 
 const influxDB = new InfluxDB({
     host: influxDBHost,
@@ -56,11 +49,8 @@ const influxDB = new InfluxDB({
     }]
 })
 
-app.get('/history', async (req: express.Request, res: express.Response) => {
-    return res.status(200).json(historys);
-})
 
-app.listen(3000,  async () => {
+async function main(): Promise<void> {
     console.log("Start on port 3000.")
     const client = await newGrpcConnection();
     gateway = connect({
@@ -86,14 +76,18 @@ app.listen(3000,  async () => {
         const network = gateway.getNetwork(channelName);
         // Listen for events emitted by subsequent transactions
         events = await startEventListening(network);
-        // Replay events from the block containing the first transaction
-        //await replayChaincodeEvents(network);
     }
     finally {
         events?.close();
         gateway.close();
     }
-})
+}
+
+main().catch(error => {
+    console.error('******** FAILED to run the application:', error);
+    process.exitCode = 1;
+});
+
 async function startEventListening(network: Network): Promise<CloseableAsyncIterable<ChaincodeEvent> | undefined> {
     try{
         console.log('\n*** Start chaincode event listening');
@@ -108,51 +102,6 @@ async function startEventListening(network: Network): Promise<CloseableAsyncIter
     }
 }
 
-async function readEvents(events: CloseableAsyncIterable<ChaincodeEvent>): Promise<void> {
-    try {
-        for await (const event of events) {
-            const payload = parseHistory(event.payload);
-            console.log(`\n<-- Chaincode event received: ${event.eventName} -`, payload);
-            for(const node of payload.graph_nodes) {
-                const result = await influxDB.query(`
-                    select * from ${influxDBMeasurement} where start_node = $start_node and end_node = $end_node
-                `, {
-                    placeholders: {
-                        start_node: node.start_node,
-                        end_node: node.end_node,
-                    }
-                })
-                if(node.delete){
-                    await influxDB.dropSeries({
-                        measurement: influxDBMeasurement,
-                        where: `"start_node" = '${node.start_node}' and "end_node" = '${node.end_node}'`
-                    })
-                    await influxDB.queryRaw(`
-                     select * from ${influxDBMeasurement} where start_node = $start_node and end_node = $end_node
-                `, {
-                        placeholders: {
-                            start_node: node.start_node,
-                            end_node: node.end_node,
-                        }
-                    })
-                }else{
-                    await influxDB.writePoints([{
-                        measurement: influxDBMeasurement,
-                        tags: {user: payload.user_id},
-                        fields: {start_node: node.start_node, end_node: node.end_node, requests: result.length}
-                    }
-                    ])
-                }
-            }
-
-        }
-    } catch (error: unknown) {
-        // Ignore the read error when events.close() is called explicitly
-        if (!(error instanceof GatewayError) || error.code !== grpc.status.CANCELLED) {
-            throw error;
-        }
-    }
-}
 
 interface History {
     event_name: string
@@ -167,26 +116,40 @@ interface History {
     }[]
 }
 
+async function readEvents(events: CloseableAsyncIterable<ChaincodeEvent>): Promise<void> {
+    try {
+        for await (const event of events) {
+            const payload = parseHistory(event.payload);
+            console.log(`\n<-- Chaincode event received: ${event.eventName} -`, payload);
+            for(const node of payload.graph_nodes) {
+
+                const results = await influxDB.query(`
+                    select * from ${influxDBMeasurement} where start_node = $start_node and end_node = $end_node
+                `, {
+                    placeholders: {
+                        start_node: node.start_node,
+                        end_node: node.end_node,
+                    }
+                })
+                //物理削除:DELETE FROM "viriot_blockchain_history" WHERE time = '2022-11-26T05:33:04.411'
+                await influxDB.writePoints([{
+                    measurement: influxDBMeasurement,
+                    tags: {user: payload.user_id},
+                    fields: node.delete ? {start_node: node.start_node, end_node: node.end_node} :{start_node: node.start_node, end_node: node.end_node, requests: results.length + 1}
+                }
+                ])
+            }
+
+        }
+    } catch (error: unknown) {
+        // Ignore the read error when events.close() is called explicitly
+        if (!(error instanceof GatewayError) || error.code !== grpc.status.CANCELLED) {
+            throw error;
+        }
+    }
+}
+
 function parseHistory(jsonBytes: Uint8Array) : History{
     const json = utf8Decoder.decode(jsonBytes);
     return JSON.parse(json);
-}
-
-
-async function replayChaincodeEvents(network: Network){
-    const events = await network.getChaincodeEvents(chaincodeName, { startBlock: BigInt(0) }); // 0 to replay all
-    try {
-        console.log('\n*** Start chaincode event replay ');
-        for await (const event of events) {
-            console.log("Parsing events")
-            const payload = parseHistory(event.payload);
-            historys.push(payload)
-            console.log(`\n<-- Chaincode event replayed: ${event.eventName} -`, payload);
-        }
-        console.log("*** finished replay chaincode events")
-    } catch (e) {
-        console.log(e)
-    }finally {
-        events.close();
-    }
 }

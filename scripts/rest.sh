@@ -58,25 +58,45 @@ function launch_master_controller() {
   kubectl -n $NS delete configmap viriot-master-controller-config-org1 || true
   kubectl -n $NS create configmap viriot-master-controller-config-org1 --from-file=$CONFIG_DIR
 
-  push_fn "Constructing viriot-fabric-history-listener connection profiles"
+  push_fn "Constructing viriot-fabric-chaincode-history-listener connection profiles"
 
   ENROLLMENT_DIR=${TEMP_DIR}/enrollments
   CHANNEL_MSP_DIR=${TEMP_DIR}/channel-msp
-  CONFIG_DIR=${TEMP_DIR}/viriot-fabric-history-listener
+  CONFIG_DIR=${TEMP_DIR}/viriot-fabric-chaincode-history-listener
 
   mkdir -p $CONFIG_DIR
 
   local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
   local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
-  echo "$(json_ccp 1 $peer_pem $ca_pem)" > build/viriot-fabric-history-listener/HLF_CONNECTION_PROFILE_ORG
+  echo "$(json_ccp 1 $peer_pem $ca_pem)" > build/viriot-fabric-chaincode-history-listener/HLF_CONNECTION_PROFILE_ORG
 
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/cacerts/org1-ca-vcap-me-443.pem $CONFIG_DIR/HLF_ADMIN_PUBLIC_KEY
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
   cp $ENROLLMENT_DIR/org1/users/org1admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
   cp ${TEMP_DIR}/cas/org1-ca/tlsca-cert.pem $CONFIG_DIR/HLF_ROOT_CERTIFICATE_ORG
 
-  kubectl -n $NS delete configmap viriot-fabric-history-listener || true
-  kubectl -n $NS create configmap viriot-fabric-history-listener --from-file=$CONFIG_DIR
+  kubectl -n $NS delete configmap viriot-fabric-chaincode-history-listener || true
+  kubectl -n $NS create configmap viriot-fabric-chaincode-history-listener --from-file=$CONFIG_DIR
+
+  push_fn "Constructing viriot-fabric-chaincode-event-listener connection profiles"
+
+  ENROLLMENT_DIR=${TEMP_DIR}/enrollments
+  CHANNEL_MSP_DIR=${TEMP_DIR}/channel-msp
+  CONFIG_DIR=${TEMP_DIR}/viriot-fabric-chaincode-event-listener
+
+  mkdir -p $CONFIG_DIR
+
+  local peer_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem
+  local ca_pem=$CHANNEL_MSP_DIR/peerOrganizations/org1/msp/cacerts/ca-signcert.pem
+  echo "$(json_ccp 1 $peer_pem $ca_pem)" > build/viriot-fabric-chaincode-event-listener/HLF_CONNECTION_PROFILE_ORG
+
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/cacerts/org1-ca-vcap-me-443.pem $CONFIG_DIR/HLF_ADMIN_PUBLIC_KEY
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/signcerts/cert.pem $CONFIG_DIR/HLF_CERTIFICATE_ORG
+  cp $ENROLLMENT_DIR/org1/users/org1admin/msp/keystore/key.pem $CONFIG_DIR/HLF_PRIVATE_KEY_ORG
+  cp ${TEMP_DIR}/cas/org1-ca/tlsca-cert.pem $CONFIG_DIR/HLF_ROOT_CERTIFICATE_ORG
+
+  kubectl -n $NS delete configmap viriot-fabric-chaincode-event-listener || true
+  kubectl -n $NS create configmap viriot-fabric-chaincode-event-listener --from-file=$CONFIG_DIR
 
   push_fn "Constructing viriot-master-controller-org2 connection profiles"
 
@@ -102,8 +122,11 @@ function launch_master_controller() {
 
   kubectl -n $NS rollout status deploy/viriot-master-controller-org1
 
-  apply_template kube/history-listener.yaml
-  kubectl -n $NS rollout status deploy/viriot-fabric-history-listener
+  apply_template kube/chaincode-history-listener.yaml
+  kubectl -n $NS rollout status deploy/viriot-fabric-chaincode-history-listener
+
+  apply_template kube/chaincode-event-listener.yaml
+  kubectl -n $NS rollout status deploy/viriot-fabric-chaincode-event-listener
 
   apply_template kube/vernemq-mqtt-org2.yaml
   apply_template kube/master-controller-org2.yaml
