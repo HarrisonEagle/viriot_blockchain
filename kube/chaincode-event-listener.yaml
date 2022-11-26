@@ -1,0 +1,127 @@
+#
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viriot-fabric-chaincode-event-listener
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: viriot-fabric-chaincode-event-listener
+  template:
+    metadata:
+      labels:
+        app: viriot-fabric-chaincode-event-listener
+    spec:
+      nodeSelector:
+        viriot-zone-gw: "true"
+        viriot-zone: "Japan"
+      containers:
+        - name: main
+          image: viriot/chaincode-event-listener
+          imagePullPolicy: Never
+          env: 
+            - name: LOG_LEVEL
+              value: debug
+            - name: DEFAULT_VIRIOT_ZONE
+              value: Japan
+            - name: HFC_LOGGING
+              value: '{ "debug": "console" }'
+            - name: PORT
+              value: "3000"
+            - name: RETRY_DELAY
+              value: "3000"
+            - name: MAX_RETRY_COUNT
+              value: "5"
+            - name: HLF_COMMIT_TIMEOUT
+              value: "3000"
+            - name: HLF_ENDORSE_TIMEOUT
+              value: "30"
+            - name: REDIS_HOST
+              value: "localhost"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ORG_APIKEY
+              value: "97834158-3224-4CE7-95F9-A148C886653E"
+            - name: AS_LOCAL_HOST
+              value: "false"
+            - name: HLF_PEER_ENDPOINT
+              value: "org1-peer-gateway-svc:7051"
+            - name: HLF_CHAINCODE_NAME
+              value: "viriot-chaincode"
+            - name: HLF_MSP_ID_ORG
+              value: "Org1MSP"
+            - name: HLF_ORG_ID
+              value: "Org1"
+            - name: HLF_ORG_CA
+              value: "org1-ca"
+            - name: HLF_ORG_ADMIN
+              value: "org1admin"
+            - name: HLF_ORG_ADMINPW
+              value: "org1adminpw"
+            - name: HLF_CA_DEPARTMENT
+              value: "org1.department1"
+            - name: MONGO_USERNAME
+              value: "root"
+            - name: MONGO_PASSWORD
+              value: "example"
+            - name: INFLUXDB_HOST
+              value: "influxdb"
+            - name: INFLUXDB_PORT
+              value: "8086"
+            - name: INFLUXDB_PROTOCOL
+              value: "http"
+            - name: INFLUXDB_DBNAME
+              value: "monitoring"
+            - name: INFLUXDB_USERNAME
+              value: "user"
+            - name: INFLUXDB_PASSWORD
+              value: "influxdbpw"
+            - name: INFLUXDB_MEASUREMENT
+              value: "viriot_blockchain_history"
+            - name: JWT_SECRET
+              value: "UYG867ti867f(/&$SWRUco)(YPO/T"
+          envFrom:
+            - configMapRef:
+                name: viriot-fabric-chaincode-event-listener
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: viriot-fabric-chaincode-event-listener
+spec:
+  ports:
+    - name: http
+      port: 3000
+      protocol: TCP
+  selector:
+    app: viriot-fabric-chaincode-event-listener
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: viriot-cluster-role
+rules:
+- apiGroups: ["", "apps"]
+  resources: ["deployments", "services", "nodes", "pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: viriot-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: viriot-network
+roleRef:
+  kind: ClusterRole
+  name: viriot-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+

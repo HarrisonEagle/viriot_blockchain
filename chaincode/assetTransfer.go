@@ -60,7 +60,40 @@ type MQTTProfile struct {
 	Port string `json:"port"`
 }
 
+type GraphNode struct {
+	StartNode string `json:"start_node"`
+	EndNode   string `json:"end_node"`
+	Delete    bool   `json:"delete"`
+}
+
+type History struct {
+	EventName  string      `json:"event_name"`
+	Time       string      `json:"time"`
+	TxID       string      `json:"tx_id"`
+	UserID     string      `json:"user_id"`
+	UserMSPID  string      `json:"user_mspid"`
+	GraphNodes []GraphNode `json:"graph_nodes"`
+}
+
+func SetHistory(ctx contractapi.TransactionContextInterface, EventName string, nodes []GraphNode, userID string, userMSPID string) error {
+	time, _ := ctx.GetStub().GetTxTimestamp()
+	history := History{
+		EventName:  EventName,
+		Time:       time.String(),
+		TxID:       ctx.GetStub().GetTxID(),
+		UserID:     userID,
+		UserMSPID:  userMSPID,
+		GraphNodes: nodes,
+	}
+	byte, err := json.Marshal(history)
+	if err != nil {
+		return err
+	}
+	return ctx.GetStub().SetEvent(EventName, byte)
+}
+
 func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
+	log.Println("Creating Vthing")
 	exists, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, id)
 	if err != nil {
 		return err
@@ -68,11 +101,29 @@ func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInter
 	if exists != nil {
 		return errors.New("Add fails - thingVisor " + id + " already exists")
 	}
-	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
+	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr)); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "CreateThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateThingVisor(ctx contractapi.TransactionContextInterface, id string, JSONstr string) error {
-	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr))
+	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, id, json.RawMessage(JSONstr)); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "UpdateThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateThingVisorPartial(ctx contractapi.TransactionContextInterface, id string, tvDescription string, params string) error {
@@ -95,7 +146,16 @@ func (s *SmartContract) UpdateThingVisorPartial(ctx contractapi.TransactionConte
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionThingVisors, id, assetJSON)
+	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, id, assetJSON); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "UpdateThingVisorPartial", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) GetThingVisor(ctx contractapi.TransactionContextInterface, id string) (*ThingVisor, error) {
@@ -148,12 +208,35 @@ func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInte
 }
 
 func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
-	for _, key := range ctx.GetStub().GetStringArgs()[1:] {
-		if err := ctx.GetStub().DelPrivateData(CollectionvThingTVs, key); err != nil {
-			return err
-		}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	graphNode := []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: true},
 	}
-	return ctx.GetStub().DelPrivateData(CollectionThingVisors, ThingVisorID)
+	args := ctx.GetStub().GetStringArgs()
+	for i := 2; i < len(args); i++ {
+		vThingID := args[i]
+		keyArr := strings.Split(vThingID, "/")
+		if keyArr[0] != ThingVisorID {
+			return errors.New("WARNING Delete fails - vThingID '" + vThingID + "' not valid")
+		}
+
+		key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
+		if err != nil {
+			return errors.New("Failed to create composite key of '" + key + "'")
+		}
+		/*
+			if err := ctx.GetStub().DelPrivateData(CollectionvThingTVs, key); err != nil {
+				return errors.New("Failed to delete VTHING '" + vThingID + "'")
+			}*/
+		graphNode = append(graphNode, GraphNode{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + vThingID, Delete: true})
+	}
+	if err := ctx.GetStub().DelPrivateData(CollectionThingVisors, ThingVisorID); err != nil {
+		return err
+	}
+	return SetHistory(ctx, "DeleteThingVisor", graphNode, userID, userMSPID)
 }
 
 func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
@@ -176,17 +259,16 @@ func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterfa
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionThingVisors, ThingVisorID, assetJSON)
-}
-
-type VThingTVWithKey struct {
-	Key    string    `json:"key"`
-	VThing *VThingTV `json:"vThing"`
-}
-
-type ThingVisorWithVThingKey struct {
-	ThingVisor *ThingVisor       `json:"thingVisor"`
-	VThings    []VThingTVWithKey `json:"vThings"`
+	if err := ctx.GetStub().PutPrivateData(CollectionThingVisors, ThingVisorID, assetJSON); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "StopThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: false},
+	}, userID, userMSPID)
 }
 
 type VThingTV struct {
@@ -335,43 +417,6 @@ func (s *SmartContract) GetAllVThingOfThingVisor(ctx contractapi.TransactionCont
 	return results, nil
 }
 
-func (s *SmartContract) GetThingVisorWithVThingKeys(ctx contractapi.TransactionContextInterface, ThingVisorID string) (*ThingVisorWithVThingKey, error) {
-	byteData, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
-	var thingVisor ThingVisor
-	if byteData == nil {
-		return nil, errors.New("Deletion fails - thingVisor " + ThingVisorID + " not exists")
-	}
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(byteData, &thingVisor)
-	if err != nil {
-		return nil, err
-	}
-	resultsIterator, err := ctx.GetStub().GetPrivateDataByPartialCompositeKey(CollectionvThingTVs, vThingTVObject, []string{vThingTVPrefix, ThingVisorID})
-	if err != nil {
-		return nil, err
-	}
-	var vThings []VThingTVWithKey
-	for resultsIterator.HasNext() {
-		queryResponse, err := resultsIterator.Next()
-		if err != nil {
-			return nil, err
-		}
-		var vThingTV VThingTV
-		err = json.Unmarshal(queryResponse.Value, &vThingTV)
-		if err != nil {
-			return nil, err
-		}
-		vThings = append(vThings, VThingTVWithKey{Key: queryResponse.Key, VThing: &vThingTV})
-	}
-	err = resultsIterator.Close()
-	if err != nil {
-		return nil, err
-	}
-	return &ThingVisorWithVThingKey{ThingVisor: &thingVisor, VThings: vThings}, nil
-}
-
 func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string, vThingData string) error {
 	thingVisorByte, err := ctx.GetStub().GetPrivateData(CollectionThingVisors, ThingVisorID)
 	if err != nil {
@@ -401,7 +446,17 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte)
+	if err := ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, newVThingByte); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "AddVThingToThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: false},
+		{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + newVThingID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateVThingOfThingVisor(ctx contractapi.TransactionContextInterface, VThingID string, vThingData string) error {
@@ -415,7 +470,17 @@ func (s *SmartContract) UpdateVThingOfThingVisor(ctx contractapi.TransactionCont
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, VThingByte)
+	if err := ctx.GetStub().PutPrivateData(CollectionvThingTVs, key, VThingByte); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "UpdateVThingOfThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "thingvisor-" + keyArr[0], Delete: false},
+		{StartNode: "thingvisor-" + keyArr[0], EndNode: "vthing-" + VThingID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) GetVThingOfThingVisor(ctx contractapi.TransactionContextInterface, VThingID string) (*VThingTV, error) {
@@ -454,21 +519,31 @@ func (s *SmartContract) DeleteVThingFromThingVisor(ctx contractapi.TransactionCo
 	if thingVisor.Status != STATUS_RUNNING {
 		return errors.New("WARNING Add fails - ThingVisor " + ThingVisorID + " is not ready")
 	}
-	var newVThing VThingTV
-	newVThingByte := json.RawMessage(vThingData)
-	if err := json.Unmarshal(newVThingByte, &newVThing); err != nil {
+	var VThing VThingTV
+	VThingByte := json.RawMessage(vThingData)
+	if err := json.Unmarshal(VThingByte, &VThing); err != nil {
 		return err
 	}
-	newVThingID := newVThing.ID
-	keyArr := strings.Split(newVThingID, "/")
+	VThingID := VThing.ID
+	keyArr := strings.Split(VThingID, "/")
 	if keyArr[0] != ThingVisorID {
-		return errors.New("WARNING Add fails - vThingID '" + newVThingID + "' not valid")
+		return errors.New("WARNING Add fails - vThingID '" + VThingID + "' not valid")
 	}
 	key, err := ctx.GetStub().CreateCompositeKey(vThingTVObject, []string{vThingTVPrefix, keyArr[0], keyArr[1]})
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().DelPrivateData(CollectionvThingTVs, key)
+	if err := ctx.GetStub().DelPrivateData(CollectionvThingTVs, key); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "DeleteVThingFromThingVisor", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + VThingID, Delete: true},
+	}, userID, userMSPID)
+
 }
 
 type Flavour struct {
@@ -501,7 +576,16 @@ func (s *SmartContract) AddFlavour(ctx contractapi.TransactionContextInterface, 
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, data)
+	if err := ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, data); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "AddFlavour", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateFlavour(ctx contractapi.TransactionContextInterface, flavourID string, flavourData string) error {
@@ -512,7 +596,16 @@ func (s *SmartContract) UpdateFlavour(ctx contractapi.TransactionContextInterfac
 	if flavourByte == nil {
 		return errors.New("Update Flavour fails - Flavour " + flavourID + " not exist")
 	}
-	return ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, json.RawMessage(flavourData))
+	if err := ctx.GetStub().PutPrivateData(CollectionFlavours, flavourID, json.RawMessage(flavourData)); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "UpdateFlavour", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) DeleteFlavour(ctx contractapi.TransactionContextInterface, flavourID string) error {
@@ -523,7 +616,16 @@ func (s *SmartContract) DeleteFlavour(ctx contractapi.TransactionContextInterfac
 	if flavourByte == nil {
 		return errors.New("Delete Flavour fails - Flavour " + flavourID + " not exist")
 	}
-	return ctx.GetStub().DelPrivateData(CollectionFlavours, flavourID)
+	if err := ctx.GetStub().DelPrivateData(CollectionFlavours, flavourID); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "DeleteFlavour", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: true},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) GetAllFlavours(ctx contractapi.TransactionContextInterface) ([]Flavour, error) {
@@ -585,9 +687,9 @@ type VirtualSilo struct {
 	AdditionalDeploymentsNames []string     `json:"additionalDeploymentsNames"`
 }
 
-func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
+func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string, flavourID string) error {
 	keyArr := strings.Split(VSiloID, "_")
-	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
+	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]}) //keyArr[1] is flavourID
 	if err != nil {
 		return errors.New("Generate key of " + VSiloID + " failed.")
 	}
@@ -607,7 +709,17 @@ func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterfa
 	if err != nil {
 		return err
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvSilos, key, data)
+	if err := ctx.GetStub().PutPrivateData(CollectionvSilos, key, data); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "AddVirtualSilo", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
+		{StartNode: "flavour-" + flavourID, EndNode: "silo-" + VSiloID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string, SiloData string) error {
@@ -623,7 +735,16 @@ func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInte
 	if data == nil {
 		return errors.New("Update VirtualSilo fails - VirtualSilo " + VSiloID + " not exist")
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvSilos, key, json.RawMessage(SiloData))
+	if err := ctx.GetStub().PutPrivateData(CollectionvSilos, key, json.RawMessage(SiloData)); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "UpdateVirtualSilo", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) GetAllVirtualSilos(ctx contractapi.TransactionContextInterface) ([]VirtualSilo, error) {
@@ -699,7 +820,17 @@ func (s *SmartContract) GetVirtualSilosByTenantID(ctx contractapi.TransactionCon
 
 func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInterface, VSiloID string) error {
 	keyArr := strings.Split(VSiloID, "_")
-	for _, vThingID := range ctx.GetStub().GetStringArgs()[1:] {
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	graphNode := []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: true},
+		{StartNode: "flavour-" + keyArr[1], EndNode: "silo-" + VSiloID, Delete: true},
+	}
+	args := ctx.GetStub().GetStringArgs()
+	for i := 2; i < len(args); i++ {
+		vThingID := args[i]
 		key, err := ctx.GetStub().CreateCompositeKey(vThingVSiloObject, []string{vThingVSiloPrefix, keyArr[0], keyArr[1], vThingID})
 		if err != nil {
 			return errors.New("Generate key of " + VSiloID + vThingID + " failed.")
@@ -707,6 +838,7 @@ func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInte
 		if err := ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key); err != nil {
 			return errors.New("Warning - Delete VThing" + vThingID + " Failed.")
 		}
+		graphNode = append(graphNode, GraphNode{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + vThingID, Delete: true})
 	}
 	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
 	if err != nil {
@@ -715,7 +847,7 @@ func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInte
 	if err := ctx.GetStub().DelPrivateData(CollectionvSilos, key); err != nil {
 		return errors.New("Warning - Delete VirtualSilo " + VSiloID + " Failed.")
 	}
-	return nil
+	return SetHistory(ctx, "DeleteVirtualSilo", graphNode, userID, userMSPID)
 }
 
 type VThingVSilo struct {
@@ -731,7 +863,17 @@ func (s *SmartContract) AddVThingVSilo(ctx contractapi.TransactionContextInterfa
 	if err != nil {
 		return errors.New("Generate key of " + VSiloID + VThingID + " failed.")
 	}
-	return ctx.GetStub().PutPrivateData(CollectionvThingVSilos, key, json.RawMessage(Data))
+	if err := ctx.GetStub().PutPrivateData(CollectionvThingVSilos, key, json.RawMessage(Data)); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "AddVThingVSilo", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
+		{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + VThingID, Delete: false},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) DeleteVThingVSilo(ctx contractapi.TransactionContextInterface, VSiloID string, VThingID string) error {
@@ -740,7 +882,17 @@ func (s *SmartContract) DeleteVThingVSilo(ctx contractapi.TransactionContextInte
 	if err != nil {
 		return errors.New("Generate key of " + VSiloID + VThingID + " failed.")
 	}
-	return ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key)
+	if err := ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key); err != nil {
+		return err
+	}
+	userID, _ := ctx.GetClientIdentity().GetID()
+	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
+	return SetHistory(ctx, "DeleteVThingVSilo", []GraphNode{
+		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
+		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
+		{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + VThingID, Delete: true},
+	}, userID, userMSPID)
 }
 
 func (s *SmartContract) GetVThingVSilosByVSiloID(ctx contractapi.TransactionContextInterface, VSiloID string) ([]VThingVSilo, error) {

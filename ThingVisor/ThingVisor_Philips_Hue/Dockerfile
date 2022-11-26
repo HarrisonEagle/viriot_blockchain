@@ -5,6 +5,7 @@ FROM python:3.6-slim
 RUN apt update
 
 COPY . /app
+COPY ./Test /app/Test
 WORKDIR /app
 
 

@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 import {getContract} from "./fabric";
 import { mqttClient} from "./index";
-import {VThingTVWithKey, VThingVSilo} from "./controller";
+import {VThingTV, VThingTVWithKey, VThingVSilo} from "./controller";
 import {
   deleteThingVisorOnKubernetes,
   inControlSuffix,
@@ -84,13 +84,13 @@ export const onMessageDestroyThingVisorAck = async(res: any) => {
   try{
     const tvID = res.thingVisorID;
     const contract = await getContract(res.ownerID);
-    const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvID);
+    const data = await contract.evaluateTransaction('GetThingVisor', tvID);
     const thingVisor = JSON.parse(data.toString());
-    const vThings: VThingTVWithKey[] = thingVisor.vThings;
-    const vThingKeys = vThings.map(element => element.key);
-    await contract.submitTransaction("DeleteThingVisor", tvID, ...vThingKeys);
+    const vThings: VThingTV[] = thingVisor.vThings;
+    const vThingIDs = vThings.map(element => element.id);
+    await contract.submitTransaction("DeleteThingVisor", tvID, ...vThingIDs);
     if(!thingVisor.debug_mode){
-      await deleteThingVisorOnKubernetes(thingVisor.thingVisor);
+      await deleteThingVisorOnKubernetes(thingVisor);
     }
     mqttCallBack.delete(`${thingVisorPrefix}/${tvID}/${outControlSuffix}`);
     mqttClient.unsubscribe(`${thingVisorPrefix}/${tvID}/${outControlSuffix}`);

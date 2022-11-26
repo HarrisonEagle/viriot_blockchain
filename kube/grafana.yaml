@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: graf-data-dir-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - envFrom:
+        - secretRef:
+            name: grafana-creds
+        image: docker.io/grafana/grafana:9.2.6-ubuntu
+        name: grafana
+        volumeMounts:
+          - name: data-dir
+            mountPath: /var/lib/grafana/
+      securityContext:
+        fsGroup: 472
+      volumes:
+       - name: data-dir
+         persistentVolumeClaim:
+           claimName: graf-data-dir-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+spec:
+  ports:
+  - port: 3000
+    name: http
+    protocol: TCP
+  selector:
+    app: grafana
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: 60s
+  labels:
+    app: grafana
+  name: grafana
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.vcap.me
+      http:
+        paths:
+          - backend:
+              service:
+                name: grafana
+                port:
+                  name: http
+            path: /
+            pathType: ImplementationSpecific

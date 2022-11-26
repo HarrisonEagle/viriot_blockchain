@@ -563,18 +563,20 @@ controller.post('/deleteThingVisor',
         }
         const tvId : string = req.body.thingVisorID;
         const contract =  res.locals.contract as Contract;
-        const data = await contract.evaluateTransaction('GetThingVisorWithVThingKeys', tvId);
+        const data = await contract.evaluateTransaction('GetThingVisor', tvId);
         const thingVisor = JSON.parse(data.toString());
         if(req.body.force) {
-          const vThings: VThingTVWithKey[] = thingVisor.vThings;
-          const vThingKeys = (thingVisor.vThings.length > 0) ? vThings.map(element => {
-            const msg = {command: "deleteVThing", vThingID: element.vThing.id, vSiloID: "ALL"};
-            mqttClient.publish(`${vThingPrefix}/${element.vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
-            return element.key
+          const vThings: VThingTV[] = thingVisor.vThings;
+          const vThingIDs = (thingVisor.vThings.length > 0) ? vThings.map(vThing => {
+            const msg = {command: "deleteVThing", vThingID: vThing.id, vSiloID: "ALL"};
+            mqttClient.publish(`${vThingPrefix}/${vThing.id}/${outControlSuffix}`, JSON.stringify(msg));
+            return vThing.id
           }) : [];
-          await contract.submitTransaction("DeleteThingVisor", tvId, ...vThingKeys);
+          logger.debug("VTHINGIDs:")
+          console.log(vThingIDs)
+          await contract.submitTransaction("DeleteThingVisor", tvId, ...vThingIDs);
           if(!thingVisor.debug_mode){
-            await deleteThingVisorOnKubernetes(thingVisor.thingVisor);
+            await deleteThingVisorOnKubernetes(thingVisor);
           }
           mqttCallBack.delete(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
           mqttClient.unsubscribe(`${thingVisorPrefix}/${tvId}/${outControlSuffix}`);
@@ -808,7 +810,7 @@ controller.post('/siloCreate',
         const contract = await getContract(userID);
         const flavour = JSON.parse((await contract.evaluateTransaction('GetFlavour', flavourID)).toString());
         //key: tenantID/vSiloID
-        await contract.submitTransaction('AddVirtualSilo', vSiloID)
+        await contract.submitTransaction('AddVirtualSilo', vSiloID, flavourID)
         await addBackgroundJob(
             jobQueue!,
             "create_vsilo",
