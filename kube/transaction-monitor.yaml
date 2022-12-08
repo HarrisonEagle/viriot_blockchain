@@ -6,23 +6,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: viriot-fabric-chaincode-history-listener
+  name: viriot-fabric-transaction-monitor
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: viriot-fabric-chaincode-history-listener
+      app: viriot-fabric-transaction-monitor
   template:
     metadata:
       labels:
-        app: viriot-fabric-chaincode-history-listener
+        app: viriot-fabric-transaction-monitor
     spec:
       nodeSelector:
         viriot-zone-gw: "true"
         viriot-zone: "Japan"
       containers:
         - name: main
-          image: viriot/chaincode-history-listener
+          image: viriot/transaction-monitor
           imagePullPolicy: Never
           env: 
             - name: LOG_LEVEL
@@ -69,39 +69,32 @@ spec:
               value: "root"
             - name: MONGO_PASSWORD
               value: "example"
-            - name: INFLUXDB_HOST
-              value: "influxdb"
-            - name: INFLUXDB_PORT
-              value: "8086"
-            - name: INFLUXDB_PROTOCOL
-              value: "http"
-            - name: INFLUXDB_DBNAME
-              value: "monitoring"
-            - name: INFLUXDB_USERNAME
-              value: "user"
-            - name: INFLUXDB_PASSWORD
-              value: "influxdbpw"
-            - name: INFLUXDB_MEASUREMENT
-              value: "viriot_blockchain_history"
             - name: JWT_SECRET
               value: "UYG867ti867f(/&$SWRUco)(YPO/T"
           envFrom:
             - configMapRef:
-                name: viriot-fabric-chaincode-history-listener
+                name: viriot-fabric-transaction-monitor
           ports:
             - containerPort: 3000
+        - name: cache
+          image: redis:6.2.5
+          ports:
+            - containerPort: 6379
+          args:
+            - "--port"
+            - "6379"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: viriot-fabric-chaincode-history-listener
+  name: viriot-fabric-transaction-monitor
 spec:
   ports:
     - name: http
       port: 3000
       protocol: TCP
   selector:
-    app: viriot-fabric-chaincode-history-listener
+    app: viriot-fabric-transaction-monitor
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -110,17 +103,17 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: 60s
   labels:
-    app: viriot-fabric-chaincode-history-listener
-  name: viriot-fabric-chaincode-history-listener
+    app: viriot-fabric-transaction-monitor
+  name: viriot-fabric-transaction-monitor
 spec:
   ingressClassName: nginx
   rules:
-    - host: viriot-fabric-chaincode-history-listener.vcap.me
+    - host: viriot-fabric-transaction-monitor.vcap.me
       http:
         paths:
           - backend:
               service:
-                name: viriot-fabric-chaincode-history-listener
+                name: viriot-fabric-transaction-monitor
                 port:
                   name: http
             path: /
