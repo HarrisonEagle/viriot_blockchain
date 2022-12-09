@@ -157,14 +157,18 @@ function query_chaincode_metadata() {
 
 function invoke_chaincode() {
   local cc_name=$1
+  local cc_org=$2
+  local cc_peer=$3
+  local json=$4
   shift
+   push_fn "Invoking chaincode ${cc_name} ${cc_org} ${cc_peer}"
 
   export_peer_context org1 peer1 
 
   peer chaincode invoke \
     -n              $cc_name \
     -C              $CHANNEL_NAME \
-    -c              $@ \
+    -c              $json \
     --orderer       org0-orderer1.${DOMAIN}:443 \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem

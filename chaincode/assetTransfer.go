@@ -30,19 +30,18 @@ const (
 	vThingVSiloObject string = "vThingVSilo"
 	vThingVSiloPrefix string = "{vthingvsiloprefix}"
 
-	MessageOK              string = "OK"
-	MessageAssetNotExist   string = "Asset Not Exist!"
-	MessageAssetExist      string = "Asset Exist!"
-	MessageAssetNotRunning string = "Asset Not Running!"
+	STATUS_PENDING  string = "pending"
+	STATUS_RUNNING  string = "running"
+	STATUS_STOPPING string = "stopping"
 
-	STATUS_PENDING       string = "pending"
-	STATUS_RUNNING       string = "running"
-	STATUS_STOPPING      string = "stopping"
-	STATUS_STOPPED       string = "stopped"
-	STATUS_SHUTTING_DOWN string = "shutting_down"
-	STATUS_TERMINATED    string = "terminated"
-	STATUS_READY         string = "ready"
-	STATUS_ERROR         string = "error"
+	NODE_ORG_PROVIDER string = "org-provider"
+	NODE_USER         string = "user"
+	NODE_DELETED      string = "deleted"
+	NODE_THINGVISOR   string = "thingvisor"
+	NODE_VTHING       string = "vthing"
+	NODE_FLAVOUR      string = "flavour"
+	NODE_VSILO        string = "virtualsilo"
+	NODE_ORG_CONSUMER string = "org-consumer"
 )
 
 type serverConfig struct {
@@ -60,30 +59,31 @@ type MQTTProfile struct {
 	Port string `json:"port"`
 }
 
-type GraphNode struct {
-	StartNode string `json:"start_node"`
-	EndNode   string `json:"end_node"`
-	Delete    bool   `json:"delete"`
+type LogGraph struct {
+	Source     string `json:"source"`
+	SourceType string `json:"source_type"`
+	Target     string `json:"target"`
+	TargetType string `json:"target_type"`
 }
 
 type History struct {
-	EventName  string      `json:"event_name"`
-	Time       string      `json:"time"`
-	TxID       string      `json:"tx_id"`
-	UserID     string      `json:"user_id"`
-	UserMSPID  string      `json:"user_mspid"`
-	GraphNodes []GraphNode `json:"graph_nodes"`
+	EventName string     `json:"event_name"`
+	Time      string     `json:"time"`
+	TxID      string     `json:"tx_id"`
+	UserID    string     `json:"user_id"`
+	UserMSPID string     `json:"user_mspid"`
+	LogGraphs []LogGraph `json:"graph_data"`
 }
 
-func SetHistory(ctx contractapi.TransactionContextInterface, EventName string, nodes []GraphNode, userID string, userMSPID string) error {
+func SetHistory(ctx contractapi.TransactionContextInterface, EventName string, nodes []LogGraph, userID string, userMSPID string) error {
 	time, _ := ctx.GetStub().GetTxTimestamp()
 	history := History{
-		EventName:  EventName,
-		Time:       time.String(),
-		TxID:       ctx.GetStub().GetTxID(),
-		UserID:     userID,
-		UserMSPID:  userMSPID,
-		GraphNodes: nodes,
+		EventName: EventName,
+		Time:      time.String(),
+		TxID:      ctx.GetStub().GetTxID(),
+		UserID:    userID,
+		UserMSPID: userMSPID,
+		LogGraphs: nodes,
 	}
 	byte, err := json.Marshal(history)
 	if err != nil {
@@ -106,10 +106,10 @@ func (s *SmartContract) CreateThingVisor(ctx contractapi.TransactionContextInter
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "CreateThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	return SetHistory(ctx, "CreateThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + id, SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
 	}, userID, userMSPID)
 }
 
@@ -119,10 +119,10 @@ func (s *SmartContract) UpdateThingVisor(ctx contractapi.TransactionContextInter
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "UpdateThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	return SetHistory(ctx, "UpdateThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + id, SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
 	}, userID, userMSPID)
 }
 
@@ -151,10 +151,10 @@ func (s *SmartContract) UpdateThingVisorPartial(ctx contractapi.TransactionConte
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "UpdateThingVisorPartial", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + id, Delete: false},
+	return SetHistory(ctx, "UpdateThingVisorPartial", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + id, SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
 	}, userID, userMSPID)
 }
 
@@ -210,10 +210,10 @@ func (s *SmartContract) ThingVisorRunning(ctx contractapi.TransactionContextInte
 func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	graphNode := []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: true},
+	graph := []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + ThingVisorID, SourceType: NODE_USER, TargetType: NODE_DELETED},
 	}
 	args := ctx.GetStub().GetStringArgs()
 	for i := 2; i < len(args); i++ {
@@ -231,12 +231,12 @@ func (s *SmartContract) DeleteThingVisor(ctx contractapi.TransactionContextInter
 			if err := ctx.GetStub().DelPrivateData(CollectionvThingTVs, key); err != nil {
 				return errors.New("Failed to delete VTHING '" + vThingID + "'")
 			}*/
-		graphNode = append(graphNode, GraphNode{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + vThingID, Delete: true})
+		graph = append(graph, LogGraph{Source: "thingvisor-" + ThingVisorID, Target: "vthing-" + vThingID, SourceType: NODE_DELETED, TargetType: NODE_DELETED})
 	}
 	if err := ctx.GetStub().DelPrivateData(CollectionThingVisors, ThingVisorID); err != nil {
 		return err
 	}
-	return SetHistory(ctx, "DeleteThingVisor", graphNode, userID, userMSPID)
+	return SetHistory(ctx, "DeleteThingVisor", graph, userID, userMSPID)
 }
 
 func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterface, ThingVisorID string) error {
@@ -264,10 +264,10 @@ func (s *SmartContract) StopThingVisor(ctx contractapi.TransactionContextInterfa
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "StopThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: false},
+	return SetHistory(ctx, "StopThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + ThingVisorID, SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
 	}, userID, userMSPID)
 }
 
@@ -451,11 +451,11 @@ func (s *SmartContract) AddVThingToThingVisor(ctx contractapi.TransactionContext
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "AddVThingToThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + ThingVisorID, Delete: false},
-		{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + newVThingID, Delete: false},
+	return SetHistory(ctx, "AddVThingToThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + ThingVisorID, SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
+		{Source: "thingvisor-" + ThingVisorID, Target: "vthing-" + newVThingID, SourceType: NODE_THINGVISOR, TargetType: NODE_VTHING},
 	}, userID, userMSPID)
 }
 
@@ -475,11 +475,11 @@ func (s *SmartContract) UpdateVThingOfThingVisor(ctx contractapi.TransactionCont
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "UpdateVThingOfThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "thingvisor-" + keyArr[0], Delete: false},
-		{StartNode: "thingvisor-" + keyArr[0], EndNode: "vthing-" + VThingID, Delete: false},
+	return SetHistory(ctx, "UpdateVThingOfThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "thingvisor-" + keyArr[0], SourceType: NODE_USER, TargetType: NODE_THINGVISOR},
+		{Source: "thingvisor-" + keyArr[0], Target: "vthing-" + VThingID, SourceType: NODE_USER, TargetType: NODE_VTHING},
 	}, userID, userMSPID)
 }
 
@@ -538,10 +538,10 @@ func (s *SmartContract) DeleteVThingFromThingVisor(ctx contractapi.TransactionCo
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "DeleteVThingFromThingVisor", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "thingvisor-" + ThingVisorID, EndNode: "vthing-" + VThingID, Delete: true},
+	return SetHistory(ctx, "DeleteVThingFromThingVisor", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "thingvisor-" + ThingVisorID, Target: "vthing-" + VThingID, SourceType: NODE_THINGVISOR, TargetType: NODE_DELETED},
 	}, userID, userMSPID)
 
 }
@@ -581,10 +581,10 @@ func (s *SmartContract) AddFlavour(ctx contractapi.TransactionContextInterface, 
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "AddFlavour", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: false},
+	return SetHistory(ctx, "AddFlavour", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "flavour-" + flavourID, SourceType: NODE_USER, TargetType: NODE_FLAVOUR},
 	}, userID, userMSPID)
 }
 
@@ -601,10 +601,10 @@ func (s *SmartContract) UpdateFlavour(ctx contractapi.TransactionContextInterfac
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "UpdateFlavour", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: false},
+	return SetHistory(ctx, "UpdateFlavour", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "flavour-" + flavourID, SourceType: NODE_USER, TargetType: NODE_FLAVOUR},
 	}, userID, userMSPID)
 }
 
@@ -621,10 +621,10 @@ func (s *SmartContract) DeleteFlavour(ctx contractapi.TransactionContextInterfac
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "DeleteFlavour", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "flavour-" + flavourID, Delete: true},
+	return SetHistory(ctx, "DeleteFlavour", []LogGraph{
+		{Source: userMSPID + "-provider", Target: "user-" + userID, SourceType: NODE_ORG_PROVIDER, TargetType: NODE_USER},
+		{Source: "user-" + userID, Target: userMSPID + "-provider", SourceType: NODE_USER, TargetType: NODE_ORG_PROVIDER},
+		{Source: "user-" + userID, Target: "flavour-" + flavourID, SourceType: NODE_USER, TargetType: NODE_DELETED},
 	}, userID, userMSPID)
 }
 
@@ -714,11 +714,11 @@ func (s *SmartContract) AddVirtualSilo(ctx contractapi.TransactionContextInterfa
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "AddVirtualSilo", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
-		{StartNode: "flavour-" + flavourID, EndNode: "silo-" + VSiloID, Delete: false},
+	return SetHistory(ctx, "AddVirtualSilo", []LogGraph{
+		{Source: userMSPID + "-consumer", Target: "tenant-" + userID, SourceType: NODE_ORG_CONSUMER, TargetType: NODE_USER},
+		{Source: "tenant-" + userID, Target: userMSPID + "-consumer", SourceType: NODE_USER, TargetType: NODE_ORG_CONSUMER},
+		{Source: "tenant-" + userID, Target: "silo-" + VSiloID, SourceType: NODE_USER, TargetType: NODE_VSILO},
+		{Source: "flavour-" + flavourID, Target: "silo-" + VSiloID, SourceType: NODE_FLAVOUR, TargetType: NODE_VSILO},
 	}, userID, userMSPID)
 }
 
@@ -740,10 +740,10 @@ func (s *SmartContract) UpdateVirtualSilo(ctx contractapi.TransactionContextInte
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "UpdateVirtualSilo", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
+	return SetHistory(ctx, "UpdateVirtualSilo", []LogGraph{
+		{Source: userMSPID + "-consumer", Target: "tenant-" + userID, SourceType: NODE_ORG_CONSUMER, TargetType: NODE_USER},
+		{Source: "tenant-" + userID, Target: userMSPID + "-consumer", SourceType: NODE_USER, TargetType: NODE_ORG_CONSUMER},
+		{Source: "tenant-" + userID, Target: "silo-" + VSiloID, SourceType: NODE_USER, TargetType: NODE_VSILO},
 	}, userID, userMSPID)
 }
 
@@ -822,11 +822,11 @@ func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInte
 	keyArr := strings.Split(VSiloID, "_")
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	graphNode := []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: true},
-		{StartNode: "flavour-" + keyArr[1], EndNode: "silo-" + VSiloID, Delete: true},
+	graph := []LogGraph{
+		{Source: userMSPID + "-consumer", Target: "tenant-" + userID, SourceType: NODE_ORG_CONSUMER, TargetType: NODE_USER},
+		{Source: "tenant-" + userID, Target: userMSPID + "-consumer", SourceType: NODE_USER, TargetType: NODE_ORG_CONSUMER},
+		{Source: "tenant-" + userID, Target: "silo-" + VSiloID, SourceType: NODE_USER, TargetType: NODE_DELETED},
+		{Source: "flavour-" + keyArr[1], Target: "silo-" + VSiloID, SourceType: NODE_DELETED, TargetType: NODE_DELETED},
 	}
 	args := ctx.GetStub().GetStringArgs()
 	for i := 2; i < len(args); i++ {
@@ -838,7 +838,7 @@ func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInte
 		if err := ctx.GetStub().DelPrivateData(CollectionvThingVSilos, key); err != nil {
 			return errors.New("Warning - Delete VThing" + vThingID + " Failed.")
 		}
-		graphNode = append(graphNode, GraphNode{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + vThingID, Delete: true})
+		graph = append(graph, LogGraph{Source: "silo-" + VSiloID, Target: "vthing-" + vThingID, SourceType: NODE_DELETED, TargetType: NODE_DELETED})
 	}
 	key, err := ctx.GetStub().CreateCompositeKey(vSiloObject, []string{vSiloPrefix, keyArr[0], keyArr[1]})
 	if err != nil {
@@ -847,7 +847,7 @@ func (s *SmartContract) DeleteVirtualSilo(ctx contractapi.TransactionContextInte
 	if err := ctx.GetStub().DelPrivateData(CollectionvSilos, key); err != nil {
 		return errors.New("Warning - Delete VirtualSilo " + VSiloID + " Failed.")
 	}
-	return SetHistory(ctx, "DeleteVirtualSilo", graphNode, userID, userMSPID)
+	return SetHistory(ctx, "DeleteVirtualSilo", graph, userID, userMSPID)
 }
 
 type VThingVSilo struct {
@@ -868,11 +868,11 @@ func (s *SmartContract) AddVThingVSilo(ctx contractapi.TransactionContextInterfa
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "AddVThingVSilo", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
-		{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + VThingID, Delete: false},
+	return SetHistory(ctx, "AddVThingVSilo", []LogGraph{
+		{Source: userMSPID + "-consumer", Target: "tenant-" + userID, SourceType: NODE_ORG_CONSUMER, TargetType: NODE_USER},
+		{Source: "tenant-" + userID, Target: userMSPID + "-consumer", SourceType: NODE_USER, TargetType: NODE_ORG_CONSUMER},
+		{Source: "tenant-" + userID, Target: "silo-" + VSiloID, SourceType: NODE_USER, TargetType: NODE_VSILO},
+		{Source: "silo-" + VSiloID, Target: "vthing-" + VThingID, SourceType: NODE_VSILO, TargetType: NODE_VTHING},
 	}, userID, userMSPID)
 }
 
@@ -887,11 +887,11 @@ func (s *SmartContract) DeleteVThingVSilo(ctx contractapi.TransactionContextInte
 	}
 	userID, _ := ctx.GetClientIdentity().GetID()
 	userMSPID, _ := ctx.GetClientIdentity().GetMSPID()
-	return SetHistory(ctx, "DeleteVThingVSilo", []GraphNode{
-		{StartNode: userMSPID, EndNode: "user-" + userID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: userMSPID, Delete: false},
-		{StartNode: "user-" + userID, EndNode: "silo-" + VSiloID, Delete: false},
-		{StartNode: "silo-" + VSiloID, EndNode: "vthing-" + VThingID, Delete: true},
+	return SetHistory(ctx, "DeleteVThingVSilo", []LogGraph{
+		{Source: userMSPID + "-consumer", Target: "tenant-" + userID, SourceType: NODE_ORG_CONSUMER, TargetType: NODE_USER},
+		{Source: "tenant-" + userID, Target: userMSPID + "-consumer", SourceType: NODE_USER, TargetType: NODE_ORG_CONSUMER},
+		{Source: "tenant-" + userID, Target: "silo-" + VSiloID, SourceType: NODE_USER, TargetType: NODE_VSILO},
+		{Source: "silo-" + VSiloID, Target: "vthing-" + VThingID, SourceType: NODE_VSILO, TargetType: NODE_VTHING},
 	}, userID, userMSPID)
 }
 
