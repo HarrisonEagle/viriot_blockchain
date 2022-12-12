@@ -1,6 +1,9 @@
-# [WIP]VirIoT MasterController Network on Hyperldger Fabric
+# [WIP]VirIoT Network with Hyperldger Fabric
 
-VirIoT MasterController running on [Hyperledger Fabric](https://github.com/hyperledger/fabric) blockchain platform.[Working in progress]
+This is the VirIoT Platform developed with HyperLedger Fabric network.
+
+Original VirIoT Project: https://github.com/fed4iot/VirIoT
+This project is based on test-network sample developed by HyperLedger Fabric:https://github.com/hyperledger/fabric-samples/tree/main/test-network-k8s
 
 ## Prerequisites:
 
