@@ -1,4 +1,4 @@
-# [WIP]VirIoT Network with Hyperldger Fabric
+# VirIoT on Hyperldger Fabric
 
 This is the VirIoT Platform developed with HyperLedger Fabric network.
 
