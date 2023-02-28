@@ -38,12 +38,6 @@ Launch the network, create a channel, and deploy the [viriot-chaincode](../chain
 make init
 ```
 
-Invoke and query chaincode:
-```shell
-./network chaincode invoke viriot-chaincode '{"Args":["InitLedger"]}'
-./network chaincode query  viriot-chaincode '{"Args":["ReadAsset","asset1"]}'
-```
-
 Start VirIoT MasterController
 ```shell
 make start-master
