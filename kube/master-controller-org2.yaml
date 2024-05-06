@@ -24,7 +24,7 @@ spec:
         - name: main
           image: viriot/mastercontroller-on-fabric
           imagePullPolicy: Never
-          env: 
+          env:
             - name: LOG_LEVEL
               value: debug
             - name: DEFAULT_VIRIOT_ZONE
@@ -79,10 +79,10 @@ spec:
               value: "viriot-network.svc.cluster.local"
             - name: MQTT_CONTROL_BROKER_PORT
               value: "1883"
-#            - name: REDIS_USERNAME
-#              value: redisuser
-#            - name: REDIS_PASSWORD
-#              value: redispasword
+          #            - name: REDIS_USERNAME
+          #              value: redisuser
+          #            - name: REDIS_PASSWORD
+          #              value: redispasword
 
           envFrom:
             - configMapRef:
@@ -151,20 +151,19 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: viriot-cluster-role
 rules:
-- apiGroups: ["", "apps"]
-  resources: ["deployments", "services", "nodes", "pods"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["", "apps"]
+    resources: ["deployments", "services", "nodes", "pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: viriot-cluster-role
 subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: viriot-network
+  - kind: ServiceAccount
+    name: default
+    namespace: viriot-network
 roleRef:
   kind: ClusterRole
   name: viriot-cluster-role
   apiGroup: rbac.authorization.k8s.io
-

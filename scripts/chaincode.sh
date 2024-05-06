@@ -43,12 +43,12 @@ function chaincode_command_group() {
 
   elif [ "${COMMAND}" == "approve" ]; then
     log "Approving chaincode for org1"
-    approve_chaincode $@
+    approve_chaincode_for_all $@
     log "🏁 - Chaincode is approved"
 
   elif [ "${COMMAND}" == "commit" ]; then
     log "Committing chaincode for org1"
-    commit_chaincode $@
+    commit_chaincode_for_all $@
     log "🏁 - Chaincode is committed"
 
   elif [ "${COMMAND}" == "invoke" ]; then
@@ -69,39 +69,61 @@ function chaincode_command_group() {
 # Convenience routine to "do everything" required to bring up a sample CC.
 function deploy_chaincode() {
   local cc_name=$1
-  local cc_label=$2
-  local cc_folder=$(absolute_path $3)
-  local cc_sequence=$4
-
+  local cc_label=$1
+  local cc_folder=$(absolute_path $2)
   local temp_folder=$(mktemp -d)
   local cc_package=${temp_folder}/${cc_name}.tgz
 
-  package_chaincode       ${cc_label} ${cc_name} ${cc_package}
+  prepare_chaincode_image ${cc_folder} ${cc_name}
+  package_chaincode       ${cc_name} ${cc_label} ${cc_package}
 
-  set_chaincode_id        ${cc_package}
-  set_chaincode_image     ${cc_folder}
-
-  build_chaincode_image   ${cc_folder} ${CHAINCODE_IMAGE}
-
-  if [ "${CLUSTER_RUNTIME}" == "kind" ]; then
-    kind_load_image       ${CHAINCODE_IMAGE}
+  if [ "${CHAINCODE_BUILDER}" == "ccaas" ]; then
+    set_chaincode_id      ${cc_package}
+    launch_chaincode      ${cc_name} ${CHAINCODE_ID} ${CHAINCODE_IMAGE}
   fi
 
-  launch_chaincode        ${cc_name} ${CHAINCODE_ID} ${CHAINCODE_IMAGE}
-  activate_chaincode      ${cc_name} ${cc_package} ${cc_sequence}
+  activate_chaincode      ${cc_name} ${cc_package}
 }
 
-# Infer a reasonable name for the chaincode image based on the folder path conventions, or
-# allow the user to override with TEST_NETWORK_CHAINCODE_IMAGE.
-function set_chaincode_image() {
+# Prepare a chaincode image for use in a builder package.
+# Sets the CHAINCODE_IMAGE environment variable
+function prepare_chaincode_image() {
   local cc_folder=$1
+  local cc_name=$2
 
-  if [ -z "$TEST_NETWORK_CHAINCODE_IMAGE" ]; then
-    # cc_folder path starting with first index of "fabric-samples"
-    CHAINCODE_IMAGE=${cc_folder/*fabric-samples/fabric-samples}
+  build_chaincode_image ${cc_folder} ${cc_name}
+
+  if [ "${CLUSTER_RUNTIME}" == "k3s" ]; then
+    # For rancher / k3s runtimes, bypass the local container registry and load images directly from the image cache.
+    export CHAINCODE_IMAGE=${cc_name}
   else
-    CHAINCODE_IMAGE=${TEST_NETWORK_CHAINCODE_IMAGE}
+    # For KIND and k8s-builder environments, publish the image to a local docker registry
+    export CHAINCODE_IMAGE=localhost:${LOCAL_REGISTRY_PORT}/${cc_name}
+    publish_chaincode_image ${cc_name} ${CHAINCODE_IMAGE}
   fi
+}
+
+function build_chaincode_image() {
+  local cc_folder=$1
+  local cc_name=$2
+
+  push_fn "Building chaincode image ${cc_name}"
+
+  $CONTAINER_CLI build ${CONTAINER_NAMESPACE} -t ${cc_name} ${cc_folder}
+
+  pop_fn
+}
+
+# tag a docker image with a new name and publish to a remote container registry
+function publish_chaincode_image() {
+  local cc_name=$1
+  local cc_url=$2
+  push_fn "Publishing chaincode image ${cc_url}"
+
+  ${CONTAINER_CLI} tag  ${cc_name} ${cc_url}
+  ${CONTAINER_CLI} push ${cc_url}
+
+  pop_fn
 }
 
 # Convenience routine to "do everything other than package and launch" a sample CC.
@@ -112,15 +134,12 @@ function set_chaincode_image() {
 function activate_chaincode() {
   local cc_name=$1
   local cc_package=$2
-  local cc_sequence=$3
 
-  install_chaincode_for org1 peer1 ${cc_package} Org1MSP
-  install_chaincode_for org1 peer2 ${cc_package} Org1MSP
-  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org1 peer1 Org1MSP ${cc_sequence}
-  install_chaincode_for org2 peer1 ${cc_package} Org2MSP
-  install_chaincode_for org2 peer2 ${cc_package} Org2MSP
-  approve_chaincode   ${cc_name} ${CHAINCODE_ID} org2 peer1 Org2MSP ${cc_sequence}
-  commit_chaincode    ${cc_name} ${cc_sequence}
+  set_chaincode_id    ${cc_package}
+
+  install_chaincode   ${cc_package}
+  approve_chaincode_for_all   ${cc_name} ${CHAINCODE_ID}
+  commit_chaincode_for_all    ${cc_name}
 }
 
 function query_chaincode() {
@@ -134,7 +153,8 @@ function query_chaincode() {
   peer chaincode query \
     -n  $cc_name \
     -C  $CHANNEL_NAME \
-    -c  $@
+    -c  $@ \
+    ${QUERY_EXTRA_ARGS}
 }
 
 function query_chaincode_metadata() {
@@ -157,55 +177,83 @@ function query_chaincode_metadata() {
 
 function invoke_chaincode() {
   local cc_name=$1
-  local cc_org=$2
-  local cc_peer=$3
-  local json=$4
   shift
-   push_fn "Invoking chaincode ${cc_name} ${cc_org} ${cc_peer}"
 
-  export_peer_context org1 peer1 
+  export_peer_context org1 peer1
 
   peer chaincode invoke \
     -n              $cc_name \
     -C              $CHANNEL_NAME \
-    -c              $json \
-    --orderer       org0-orderer1.${DOMAIN}:443 \
+    -c              $@ \
+    --orderer       org0-orderer1.${DOMAIN}:${NGINX_HTTPS_PORT} \
     --connTimeout   ${ORDERER_TIMEOUT} \
-    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
+    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \
+    ${INVOKE_EXTRA_ARGS}
 
   sleep 2
 }
 
-function build_chaincode_image() {
-  local cc_folder=$1
-  local cc_image="chaincode"
-
-  push_fn "Building chaincode image ${cc_image}"
-
-  $CONTAINER_CLI build ${CONTAINER_NAMESPACE} -t ${cc_image} ${cc_folder}
-
-  pop_fn
-}
-
-function kind_load_image() {
-  local cc_image="chaincode"
-
-  push_fn "Loading chaincode to kind image plane"
-
-  kind load docker-image ${cc_image}
-
-  pop_fn
-}
-
 function package_chaincode() {
-  local cc_label=$1
-  local cc_name=$2
+
+  if [ "${CHAINCODE_BUILDER}" == "k8s" ]; then
+    package_k8s_chaincode $@
+
+  elif [ "${CHAINCODE_BUILDER}" == "ccaas" ]; then
+    package_ccaas_chaincode $@
+
+  else
+    log "Unknown CHAINCODE_BUILDER ${CHAINCODE_BUILDER}"
+    exit 1
+  fi
+}
+
+# The k8s builder expects EXACTLY an IMMUTABLE image digest referencing a SPECIFIC image layer at a container registry.
+function package_k8s_chaincode() {
+  local cc_name=$1
+  local cc_label=$2
   local cc_archive=$3
 
   local cc_folder=$(dirname $cc_archive)
   local archive_name=$(basename $cc_archive)
 
-  push_fn "Packaging chaincode ${cc_label} CCLabel:${cc_label} CCArchive:${cc_archive}"
+  push_fn "Packaging k8s chaincode ${cc_archive}"
+
+  mkdir -p ${cc_folder}
+
+  # Find the docker image digest associated with the image at the container registry
+  local cc_digest=$(${CONTAINER_CLI} inspect --format='{{index .RepoDigests 0}}' ${CHAINCODE_IMAGE} | cut -d'@' -f2)
+
+  cat << IMAGEJSON-EOF > ${cc_folder}/image.json
+{
+  "name": "${CHAINCODE_IMAGE}",
+  "digest": "${cc_digest}"
+}
+IMAGEJSON-EOF
+
+  cat << METADATAJSON-EOF > ${cc_folder}/metadata.json
+{
+    "type": "k8s",
+    "label": "${cc_label}"
+}
+METADATAJSON-EOF
+
+  tar -C ${cc_folder} -zcf ${cc_folder}/code.tar.gz image.json
+  tar -C ${cc_folder} -zcf ${cc_archive} code.tar.gz metadata.json
+
+  rm ${cc_folder}/code.tar.gz
+
+  pop_fn
+}
+
+function package_ccaas_chaincode() {
+  local cc_name=$1
+  local cc_label=$2
+  local cc_archive=$3
+
+  local cc_folder=$(dirname $cc_archive)
+  local archive_name=$(basename $cc_archive)
+
+  push_fn "Packaging ccaas chaincode ${cc_label}"
 
   mkdir -p ${cc_folder}
 
@@ -242,7 +290,7 @@ function launch_chaincode_service() {
   local peer=$2
   local cc_name=$3
   local cc_id=$4
-  local cc_image="chaincode"
+  local cc_image=$5
   push_fn "Launching chaincode container \"${cc_image}\""
 
   # The chaincode endpoint needs to have the generated chaincode ID available in the environment.
@@ -253,9 +301,9 @@ function launch_chaincode_service() {
     | sed 's,{{CHAINCODE_ID}},'${cc_id}',g' \
     | sed 's,{{CHAINCODE_IMAGE}},'${cc_image}',g' \
     | sed 's,{{PEER_NAME}},'${peer}',g' \
-    | exec kubectl -n $NS apply -f -
+    | exec kubectl -n $ORG1_NS apply -f -
 
-  kubectl -n $NS rollout status deploy/${org}${peer}-ccaas-${cc_name}
+  kubectl -n $ORG1_NS rollout status deploy/${org}${peer}-ccaas-${cc_name}
 
   pop_fn
 }
@@ -264,24 +312,22 @@ function launch_chaincode() {
   local org=org1
   local cc_name=$1
   local cc_id=$2
-  local cc_image="chaincode"
+  local cc_image=$3
 
   launch_chaincode_service org1 peer1 ${cc_name} ${cc_id} ${cc_image}
   launch_chaincode_service org1 peer2 ${cc_name} ${cc_id} ${cc_image}
   launch_chaincode_service org2 peer1 ${cc_name} ${cc_id} ${cc_image}
   launch_chaincode_service org2 peer2 ${cc_name} ${cc_id} ${cc_image}
 }
-
 function install_chaincode_for() {
   local org=$1
   local peer=$2
   local cc_package=$3
-  local orgname=$4
   push_fn "Installing chaincode for org ${org} peer ${peer}"
-  export_peer_context $org $peer $orgname
 
-  peer lifecycle chaincode install $cc_package
-  peer lifecycle chaincode queryinstalled
+  export_peer_context $org $peer
+
+  peer lifecycle chaincode install $cc_package ${INSTALL_EXTRA_ARGS}
 
   pop_fn
 }
@@ -291,10 +337,17 @@ function install_chaincode() {
   local org=org1
   local cc_package=$1
 
-  install_chaincode_for org1 peer1 ${cc_package} Org1MSP
-  install_chaincode_for org1 peer2 ${cc_package} Org1MSP
-  install_chaincode_for org2 peer1 ${cc_package} Org2MSP
-  install_chaincode_for org2 peer2 ${cc_package} Org2MSP
+  install_chaincode_for org1 peer1 ${cc_package}
+  install_chaincode_for org1 peer2 ${cc_package}
+  install_chaincode_for org2 peer1 ${cc_package}
+  install_chaincode_for org2 peer2 ${cc_package}
+}
+
+function approve_chaincode_for_all() {
+  local cc_name=$1
+  local cc_id=$2
+  approve_chaincode ${cc_name} ${cc_id} org1 peer1
+  approve_chaincode ${cc_name} ${cc_id} org2 peer1
 }
 
 # approve the chaincode package for an org and assign a name
@@ -303,44 +356,51 @@ function approve_chaincode() {
   local peer=$4
   local cc_name=$1
   local cc_id=$2
-  local orgname=$5
-  local cc_sequence=$6
-  push_fn "Approving chaincode ${cc_name} with ID ${cc_id} sequence ${cc_sequence}"
+  push_fn "Approving chaincode ${cc_name} with ID ${cc_id}"
 
-  export_peer_context $org $peer $orgname
+  export_peer_context $org $peer
 
-  peer lifecycle chaincode approveformyorg \
+  peer lifecycle \
+    chaincode approveformyorg \
     --channelID     ${CHANNEL_NAME} \
     --name          ${cc_name} \
     --version       1 \
     --package-id    ${cc_id} \
-    --sequence      ${cc_sequence} \
-    --orderer       org0-orderer1.${DOMAIN}:443 \
+    --sequence      1 \
+    --orderer       org0-orderer1.${DOMAIN}:${NGINX_HTTPS_PORT} \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --collections-config scripts/collections_config.json \
-    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem
+    --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \
+    ${APPROVE_EXTRA_ARGS}
 
   pop_fn
+}
+
+function commit_chaincode_for_all() {
+  local cc_name=$1
+  commit_chaincode ${cc_name} org1 peer1
 }
 
 # commit the named chaincode for an org
 function commit_chaincode() {
   local cc_name=$1
-  local cc_sequence=$2
+  local org=$2
+  local peer=$3
   push_fn "Committing chaincode ${cc_name}"
+
+  export_peer_context $org $peer
 
   peer lifecycle \
     chaincode commit \
     --channelID     ${CHANNEL_NAME} \
     --name          ${cc_name} \
     --version       1 \
-    --sequence      ${cc_sequence} \
-    --orderer       org0-orderer1.${DOMAIN}:443 \
+    --sequence      1 \
+    --orderer       org0-orderer1.${DOMAIN}:${NGINX_HTTPS_PORT} \
     --connTimeout   ${ORDERER_TIMEOUT} \
     --tls --cafile  ${TEMP_DIR}/channel-msp/ordererOrganizations/org0/orderers/org0-orderer1/tls/signcerts/tls-cert.pem \
     --collections-config scripts/collections_config.json \
-    --peerAddresses org1-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org1/msp/tlscacerts/tlsca-signcert.pem \
-    --peerAddresses org2-peer1.${DOMAIN}:443 --tlsRootCertFiles ${TEMP_DIR}/channel-msp/peerOrganizations/org2/msp/tlscacerts/tlsca-signcert.pem
+    ${COMMIT_EXTRA_ARGS}
 
   pop_fn
 }
@@ -353,3 +413,4 @@ function set_chaincode_id() {
 
   CHAINCODE_ID=${cc_label}:${cc_sha256}
 }
+

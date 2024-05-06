@@ -3,11 +3,11 @@ up:
 init:
 	./network up
 	./network channel create
-	./network chaincode deploy viriot-chaincode basic_1.0 chaincode 1
+	./network chaincode deploy viriot-chaincode ./chaincode
 down:
 	./network down
 chaincode:
-	./network chaincode deploy viriot-chaincode basic_1.0 chaincode 1
+	./network chaincode deploy viriot-chaincode ./chaincode
 start-master:
 	./network master-controller
 setup-grafana:

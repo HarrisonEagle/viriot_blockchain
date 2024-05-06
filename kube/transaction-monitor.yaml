@@ -24,7 +24,7 @@ spec:
         - name: main
           image: viriot/transaction-monitor
           imagePullPolicy: Never
-          env: 
+          env:
             - name: LOG_LEVEL
               value: debug
             - name: DEFAULT_VIRIOT_ZONE
@@ -124,20 +124,19 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: viriot-cluster-role
 rules:
-- apiGroups: ["", "apps"]
-  resources: ["deployments", "services", "nodes", "pods"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["", "apps"]
+    resources: ["deployments", "services", "nodes", "pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: viriot-cluster-role
 subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: viriot-network
+  - kind: ServiceAccount
+    name: default
+    namespace: viriot-network
 roleRef:
   kind: ClusterRole
   name: viriot-cluster-role
   apiGroup: rbac.authorization.k8s.io
-
