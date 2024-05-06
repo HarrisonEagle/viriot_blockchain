@@ -38,9 +38,9 @@ Launch the network, create a channel, and deploy the [viriot-chaincode](../chain
 make init
 ```
 
-Start VirIoT MasterController
+Initialize and start VirIoT MasterController
 ```shell
-make start-master
+make update-local-master
 ```
 
 Shut down the local network: 
