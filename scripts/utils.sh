@@ -84,7 +84,7 @@ function apply_template() {
   echo "Applying template $1:"
   cat $1 | envsubst
 
-  cat $1 | envsubst | kubectl -n $NS apply -f -
+  cat $1 | envsubst | kubectl -n $2 apply -f -
 }
 
 # Set the calling context to refer the peer binary to the correct org / peer instance
@@ -100,7 +100,7 @@ function export_peer_context() {
   local peer=$2
 
   export FABRIC_CFG_PATH=${PWD}/config/${org}
-  export CORE_PEER_ADDRESS=${org}-${peer}.${DOMAIN}:443
+  export CORE_PEER_ADDRESS=${org}-${peer}.${DOMAIN}:${NGINX_HTTPS_PORT}
   export CORE_PEER_MSPCONFIGPATH=${TEMP_DIR}/enrollments/${org}/users/${org}admin/msp
   export CORE_PEER_TLS_ROOTCERT_FILE=${TEMP_DIR}/channel-msp/peerOrganizations/${org}/msp/tlscacerts/tlsca-signcert.pem
 }

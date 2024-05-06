@@ -16,7 +16,7 @@ spec:
   dnsNames:
     - localhost
     - org0-ca
-    - org0-ca.viriot-network.svc.cluster.local
+    - org0-ca.${ORG0_NS}.svc.cluster.local
     - org0-ca.${DOMAIN}
   ipAddresses:
     - 127.0.0.1
@@ -39,12 +39,10 @@ spec:
       labels:
         app: org0-ca
     spec:
-      nodeSelector:
-        viriot-zone: "Orderer"
       containers:
         - name: main
           image: ${FABRIC_CONTAINER_REGISTRY}/fabric-ca:${FABRIC_CA_VERSION}
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           env:
             - name: FABRIC_CA_SERVER_CA_NAME
               value: "org0-ca"

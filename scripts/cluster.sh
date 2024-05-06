@@ -63,8 +63,10 @@ function cluster_init() {
   wait_for_cert_manager
   wait_for_nginx_ingress
   
-  pull_docker_images
-  load_docker_images
+  if [ "${STAGE_DOCKER_IMAGES}" == true ]; then
+    pull_docker_images
+    kind_load_docker_images
+  fi
 }
 
 function apply_nginx() {
@@ -137,7 +139,7 @@ function cluster_clean() {
   delete_cert_manager
 }
 
-function load_docker_images() {
+function load_images() {
   if [ "${CLUSTER_RUNTIME}" == "kind" ]; then
     kind_load_docker_images
   fi

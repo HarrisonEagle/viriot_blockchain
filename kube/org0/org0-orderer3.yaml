@@ -9,7 +9,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: org0-orderer3-tls-cert
-  namespace: ${NS}
+  namespace: ${ORG0_NS}
 spec:
   isCA: false
   privateKey:
@@ -18,7 +18,7 @@ spec:
   dnsNames:
     - localhost
     - org0-orderer3
-    - org0-orderer3.${NS}.svc.cluster.local
+    - org0-orderer3.${ORG0_NS}.svc.cluster.local
     - org0-orderer3.${DOMAIN}
     - org0-orderer3-admin.${DOMAIN}
   ipAddresses:
@@ -71,12 +71,10 @@ spec:
       labels:
         app: org0-orderer3
     spec:
-      nodeSelector:
-        viriot-zone: "Orderer"
       containers:
         - name: main
           image: ${FABRIC_CONTAINER_REGISTRY}/fabric-orderer:${FABRIC_VERSION}
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: org0-orderer3-env

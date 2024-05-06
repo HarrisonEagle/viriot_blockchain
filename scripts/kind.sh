@@ -65,23 +65,10 @@ EOF
   kubectl label nodes --overwrite kind-worker2 viriot-zone=USA
   kubectl label nodes --overwrite kind-worker2 viriot-zone-gw=true
   kubectl label nodes --overwrite kind-worker3 viriot-zone=Orderer
+  
   pop_fn
 }
 
-function kind_load_docker_images() {
-  push_fn "Loading docker images to KIND control plane"
-
-  kind load docker-image ${FABRIC_CONTAINER_REGISTRY}/fabric-ca:$FABRIC_CA_VERSION
-  kind load docker-image ${FABRIC_CONTAINER_REGISTRY}/fabric-orderer:$FABRIC_VERSION
-  kind load docker-image ${FABRIC_PEER_IMAGE}
-  kind load docker-image couchdb:3.2.1
-
-  kind load docker-image redis:6.2.5
-  kind load docker-image mongo:5.0.9
-  kind load docker-image fed4iot/v-weather-tv:2.3
-
-  pop_fn
-}
 
 function launch_docker_registry() {
   push_fn "Launching container registry \"${LOCAL_REGISTRY_NAME}\" at localhost:${LOCAL_REGISTRY_PORT}"
@@ -89,11 +76,15 @@ function launch_docker_registry() {
   # create registry container unless it already exists
   local reg_name=${LOCAL_REGISTRY_NAME}
   local reg_port=${LOCAL_REGISTRY_PORT}
+  local reg_interface=${LOCAL_REGISTRY_INTERFACE}
 
   running="$(docker inspect -f '{{.State.Running}}' "${reg_name}" 2>/dev/null || true)"
   if [ "${running}" != 'true' ]; then
-    docker run \
-      -d --restart=always -p "127.0.0.1:${reg_port}:5000" --name "${reg_name}" \
+    docker run  \
+      --detach  \
+      --restart always \
+      --name    "${reg_name}" \
+      --publish "${reg_interface}:${reg_port}:5000" \
       registry:2
   fi
 
